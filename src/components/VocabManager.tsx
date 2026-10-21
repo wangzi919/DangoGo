@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { VocabItem, MistakeItem } from '../types';
 import { playJapaneseSpeech, playSuccessSound, playErrorSound } from '../lib/speech';
-import { Mascot } from './Mascot';
 import {
   Plus,
   Search,
@@ -28,6 +27,8 @@ interface VocabManagerProps {
   onRecordMistake: (mistake: Omit<MistakeItem, 'id' | 'failCount' | 'lastFailedAt'>) => void;
   onUpdateStats: (isCorrect: boolean) => void;
   onResetDefaultVocab: () => void;
+  activeVirtualKeyboardInput?: string;
+  onFocusInputForVirtualKeyboard?: (val: string, setter: (val: string) => void) => void;
 }
 
 export const VocabManager: React.FC<VocabManagerProps> = ({
@@ -61,10 +62,9 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
   const [quizIsCorrect, setQuizIsCorrect] = useState<boolean | null>(null);
   const [quizCorrectCount, setQuizCorrectCount] = useState(0);
   const [quizCompleted, setQuizCompleted] = useState(false);
-  const [mascotState, setMascotState] = useState<'idle' | 'jumping' | 'thinking' | 'celebrating'>('idle');
-  const [mascotMsg, setMascotMsg] = useState('看中文釋義，輸入對應的「假名讀音」！');
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
+  // Detect touch devices to avoid unwanted mobile keyboard popups on modal open
   const isTouchDevice = () => {
     if (typeof window === 'undefined') return false;
     return (
@@ -141,8 +141,7 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
     setQuizIsCorrect(null);
     setQuizCorrectCount(0);
     setQuizCompleted(false);
-    setMascotState('idle');
-    setMascotMsg('看中文與漢字，請打出正確的「假名讀音」！');
+    setIsKeyboardOpen(false);
     setIsQuizActive(true);
   };
 
@@ -163,13 +162,8 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
     if (correct) {
       playSuccessSound();
       setQuizCorrectCount(prev => prev + 1);
-      setMascotState('jumping');
-      setMascotMsg(`答對了！「${currentQuizItem.word}」讀作「${currentQuizItem.reading}」！🎉`);
     } else {
       playErrorSound();
-      setMascotState('thinking');
-      setMascotMsg(`深思中…「${currentQuizItem.word}」的假名讀音是「${currentQuizItem.reading}」💭`);
-
       onRecordMistake({
         targetId: currentQuizItem.id,
         type: 'vocab',
@@ -185,8 +179,6 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
   const handleNextQuiz = () => {
     if (quizIndex + 1 >= quizQueue.length) {
       setQuizCompleted(true);
-      setMascotState('celebrating');
-      setMascotMsg(`單字打字測驗完成！正確率 ${((quizCorrectCount / quizQueue.length) * 100).toFixed(0)}%！✨`);
       return;
     }
     const next = quizIndex + 1;
@@ -194,8 +186,6 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
     setQuizInput('');
     setQuizAnswered(false);
     setQuizIsCorrect(null);
-    setMascotState('idle');
-    setMascotMsg('下一題！軟Q糰子加油！🍡');
   };
 
   // Export JSON backup
@@ -203,7 +193,7 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(vocabList, null, 2));
     const dlAnchorElem = document.createElement('a');
     dlAnchorElem.setAttribute('href', dataStr);
-    dlAnchorElem.setAttribute('download', `nihongoat_vocab_${new Date().toISOString().split('T')[0]}.json`);
+    dlAnchorElem.setAttribute('download', `dango_vocab_${new Date().toISOString().split('T')[0]}.json`);
     dlAnchorElem.click();
   };
 
@@ -220,85 +210,67 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 flex flex-col gap-6">
 
-      {/* Quiz Modal Overlay */}
+      {/* Quiz Modal Overlay - Positioned near top with generous bottom clearance to avoid keyboard clipping */}
       {isQuizActive && (
-        <div className="fixed inset-0 z-50 bg-[#2D2A26]/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-[#E8E2D9] max-w-lg w-full p-6 sm:p-8 shadow-2xl relative flex flex-col items-center">
+        <div className="fixed inset-0 z-50 bg-[#2D2A26]/60 backdrop-blur-xs flex justify-center items-start pt-3 sm:pt-6 px-3 pb-64 overflow-y-auto">
+          <div className="bg-white rounded-2xl border border-[#E8E2D9] max-w-md w-full p-4 sm:p-5 shadow-2xl relative flex flex-col">
 
-            {/* Close button */}
-            <button
-              onClick={() => {
-                setIsQuizActive(false);
-                setIsKeyboardOpen(false);
-              }}
-              className="absolute top-4 right-4 p-2 text-[#78716C] hover:text-[#2D2A26] rounded-full hover:bg-[#FAF4EB]"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            {/* Header / Close button */}
+            <div className="flex items-center justify-between text-xs text-[#78716C] mb-2 pb-2 border-b border-[#F0EBE3]">
+              <span className="font-bold text-[#2D2A26]">
+                單字測驗（第 {quizIndex + 1} / {quizQueue.length} 題）
+              </span>
+              <button
+                onClick={() => {
+                  setIsQuizActive(false);
+                  setIsKeyboardOpen(false);
+                }}
+                className="p-1 text-[#78716C] hover:text-[#2D2A26] rounded-md hover:bg-[#FAF4EB]"
+                title="關閉測驗"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
             {!quizCompleted && currentQuizItem ? (
-              <div className="w-full flex flex-col items-center">
-                {/* Progress */}
-                <div className="w-full flex items-center justify-between text-xs text-[#78716C] mb-2">
-                  <span>
-                    第 {quizIndex + 1} / {quizQueue.length} 題
-                  </span>
-                  <span className="font-mono font-semibold text-[#8C6D53]">
-                    正確率: {quizIndex > 0 ? ((quizCorrectCount / quizIndex) * 100).toFixed(0) : 100}%
-                  </span>
-                </div>
-
-                <div className="w-full h-1.5 bg-[#FAF4EB] rounded-full overflow-hidden mb-6">
-                  <div
-                    className="h-full bg-[#8C6D53] transition-all duration-300"
-                    style={{ width: `${((quizIndex + 1) / quizQueue.length) * 100}%` }}
-                  />
-                </div>
-
-                {/* Mascot */}
-                <Mascot
-                  state={mascotState}
-                  size="sm"
-                  message={mascotMsg}
-                  showBubble={true}
-                />
-
+              <div className="w-full flex flex-col">
                 {/* Question Prompt */}
-                <div className="my-5 text-center">
-                  <div className="text-xs font-bold text-[#8C6D53] uppercase tracking-wider mb-1">
+                <div className="my-2 text-center">
+                  <div className="text-xs font-bold text-[#8C6D53] uppercase tracking-wider mb-0.5">
                     中文釋義
                   </div>
                   <div className="text-2xl sm:text-3xl font-extrabold text-[#2D2A26]">
                     {currentQuizItem.meaning}
                   </div>
-                  <div className="text-lg font-medium text-[#78716C] mt-1 flex items-center justify-center gap-2">
+                  <div className="text-sm font-medium text-[#78716C] mt-1 flex items-center justify-center gap-1.5">
                     <span>漢字：{currentQuizItem.word}</span>
                     <button
                       type="button"
                       onClick={() => playJapaneseSpeech(currentQuizItem.word)}
                       className="p-1 rounded-full text-[#8C6D53] hover:bg-[#FAF4EB]"
-                      title="朗讀"
+                      title="發音"
                     >
-                      <Volume2 className="w-4 h-4" />
+                      <Volume2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
                   {currentQuizItem.example && (
-                    <div className="text-xs text-[#A8A29E] mt-2 italic max-w-sm">
+                    <div className="text-xs text-[#A8A29E] mt-1.5 italic max-w-sm mx-auto">
                       例句：{currentQuizItem.example}
                     </div>
                   )}
                 </div>
 
-                {/* Typing Input */}
-                <form onSubmit={handleVerifyQuiz} className="w-full max-w-sm flex flex-col gap-3">
-                  {/* Virtual Keyboard Toggle for users without Japanese IME */}
+                {/* Typing Input & Virtual Keyboard Toggle */}
+                <form onSubmit={handleVerifyQuiz} className="w-full flex flex-col gap-2.5 mt-2">
+
+                  {/* Virtual Keyboard Toggle Button (with anti-keyboard-overlap indicator) */}
                   <div className="w-full flex items-center justify-between text-xs px-0.5">
                     <button
                       type="button"
                       onClick={() => setIsKeyboardOpen(!isKeyboardOpen)}
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all border ${isKeyboardOpen
-                          ? 'bg-[#2D2A26] text-white border-[#2D2A26] shadow-2xs'
-                          : 'bg-[#FAF4EB] text-[#8C6D53] border-[#D5CBBF] hover:bg-[#F2EAE0]'
+                        ? 'bg-[#2D2A26] text-white border-[#2D2A26] shadow-2xs'
+                        : 'bg-[#FAF4EB] text-[#8C6D53] border-[#D5CBBF] hover:bg-[#F2EAE0]'
                         }`}
                     >
                       <Keyboard className="w-3.5 h-3.5" />
@@ -319,12 +291,12 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
                       disabled={quizAnswered}
                       value={quizInput}
                       onChange={(e) => setQuizInput(e.target.value)}
-                      placeholder={isKeyboardOpen ? '點擊下方鍵盤輸入假名...' : '請輸入假名讀音 (如：たべる)...'}
-                      className={`w-full px-4 py-3 text-center text-lg font-bold rounded-xl border-2 transition-all outline-hidden ${quizAnswered
-                          ? quizIsCorrect
-                            ? 'bg-[#F0FDF4] border-[#22C55E] text-[#15803D]'
-                            : 'bg-[#FEF2F2] border-[#EF4444] text-[#B91C1C]'
-                          : 'bg-white border-[#D5CBBF] text-[#2D2A26] focus:border-[#8C6D53]'
+                      placeholder={isKeyboardOpen ? '點擊下方鍵盤輸入假名...' : '請輸入假名...'}
+                      className={`w-full px-4 py-2.5 text-center text-lg font-bold rounded-xl border-2 transition-all outline-hidden ${quizAnswered
+                        ? quizIsCorrect
+                          ? 'bg-[#F0FDF4] border-[#22C55E] text-[#15803D]'
+                          : 'bg-[#FEF2F2] border-[#EF4444] text-[#B91C1C]'
+                        : 'bg-white border-[#D5CBBF] text-[#2D2A26] focus:border-[#8C6D53]'
                         }`}
                     />
 
@@ -339,25 +311,34 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
                     )}
                   </div>
 
-                  {/* Feedback */}
+                  {/* Simple result & answer block (正確、錯誤、答案) */}
                   {quizAnswered && (
-                    <div className="text-center text-xs font-semibold">
+                    <div
+                      className={`p-2.5 rounded-xl text-center text-xs sm:text-sm font-bold border transition-all ${quizIsCorrect
+                        ? 'bg-[#F0FDF4] border-[#BBF7D0] text-[#15803D]'
+                        : 'bg-[#FEF2F2] border-[#FECACA] text-[#B91C1C]'
+                        }`}
+                    >
                       {quizIsCorrect ? (
-                        <span className="text-[#15803D]">回答正確！</span>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <CheckCircle2 className="w-4 h-4 shrink-0" />
+                          <span>回答正確！答案：<span className="font-mono underline font-black">{currentQuizItem.reading}</span></span>
+                        </div>
                       ) : (
-                        <span className="text-[#B91C1C]">
-                          正確讀音：<strong className="underline text-sm">{currentQuizItem.reading}</strong>
-                        </span>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <XCircle className="w-4 h-4 shrink-0" />
+                          <span>回答錯誤！正確答案：<span className="font-mono underline font-black">{currentQuizItem.reading}</span></span>
+                        </div>
                       )}
                     </div>
                   )}
 
-                  <div className="mt-2">
+                  <div className="mt-1">
                     {!quizAnswered ? (
                       <button
                         type="submit"
                         disabled={!quizInput.trim()}
-                        className="w-full py-2.5 bg-[#2D2A26] text-white font-bold rounded-xl shadow-xs hover:bg-[#1E1C1A] disabled:opacity-40 transition-all"
+                        className="w-full py-2.5 bg-[#2D2A26] text-white font-bold rounded-xl shadow-xs hover:bg-[#1E1C1A] disabled:opacity-40 transition-all text-sm"
                       >
                         確認送出 (Enter)
                       </button>
@@ -366,9 +347,9 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
                         type="button"
                         onClick={handleNextQuiz}
                         autoFocus
-                        className="w-full py-2.5 bg-[#8C6D53] text-white font-bold rounded-xl shadow-xs hover:bg-[#735842] transition-all flex items-center justify-center gap-2"
+                        className="w-full py-2.5 bg-[#8C6D53] text-white font-bold rounded-xl shadow-xs hover:bg-[#735842] transition-all flex items-center justify-center gap-2 text-sm"
                       >
-                        <span>下一題</span>
+                        <span>下一題 (Enter)</span>
                         <ArrowRight className="w-4 h-4" />
                       </button>
                     )}
@@ -377,30 +358,24 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
               </div>
             ) : (
               /* Quiz Summary */
-              <div className="w-full flex flex-col items-center text-center">
-                <Mascot
-                  state="celebrating"
-                  size="md"
-                  message="太棒了！單字測驗挑戰成功！"
-                  showBubble={true}
-                />
-                <h4 className="text-xl font-black text-[#2D2A26] mt-4">單字測驗結算</h4>
-                <div className="grid grid-cols-2 gap-4 w-full max-w-xs my-6">
-                  <div className="p-3 bg-[#FAF7F2] rounded-xl border border-[#E8E2D9]">
-                    <div className="text-xs text-[#78716C]">答對題數</div>
-                    <div className="text-xl font-bold text-[#15803D] tabular-nums mt-1">
-                      {quizCorrectCount} / {quizQueue.length}
+              <div className="w-full flex flex-col items-center text-center py-2">
+                <h4 className="text-xl font-black text-[#2D2A26] mb-4">單字測驗完成</h4>
+                <div className="grid grid-cols-2 gap-3 w-full mb-5">
+                  <div className="p-3 bg-[#F0FDF4] rounded-xl border border-[#BBF7D0]">
+                    <div className="text-xs text-[#15803D]">答對</div>
+                    <div className="text-xl font-black text-[#15803D] tabular-nums mt-0.5">
+                      {quizCorrectCount} 題
                     </div>
                   </div>
-                  <div className="p-3 bg-[#FAF7F2] rounded-xl border border-[#E8E2D9]">
-                    <div className="text-xs text-[#78716C]">正確率</div>
-                    <div className="text-xl font-bold text-[#8C6D53] tabular-nums mt-1">
-                      {quizQueue.length > 0 ? ((quizCorrectCount / quizQueue.length) * 100).toFixed(0) : 0}%
+                  <div className="p-3 bg-[#FEF2F2] rounded-xl border border-[#FECACA]">
+                    <div className="text-xs text-[#B91C1C]">答錯</div>
+                    <div className="text-xl font-black text-[#B91C1C] tabular-nums mt-0.5">
+                      {quizQueue.length - quizCorrectCount} 題
                     </div>
                   </div>
                 </div>
 
-                <div className="flex gap-2 w-full max-w-xs">
+                <div className="flex gap-2 w-full">
                   <button
                     onClick={startQuiz}
                     className="flex-1 py-2.5 bg-[#2D2A26] text-white font-bold rounded-xl text-sm"
@@ -423,7 +398,7 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
         </div>
       )}
 
-      {/* In-quiz Virtual Keyboard Drawer */}
+      {/* In-quiz Virtual Keyboard (directly mutates quiz input with dakuten/handakuten/small kana support) */}
       {isQuizActive && !quizCompleted && (
         <VirtualKeyboard
           isOpen={isKeyboardOpen}
@@ -434,6 +409,7 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
           onTransformDakuten={() => setQuizInput((prev) => transformLastChar(prev, 'dakuten'))}
           onTransformHandakuten={() => setQuizInput((prev) => transformLastChar(prev, 'handakuten'))}
           onTransformSmall={() => setQuizInput((prev) => transformLastChar(prev, 'small'))}
+          showFloatingToggle={false}
         />
       )}
 
@@ -516,8 +492,8 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
               key={lvl}
               onClick={() => setSelectedLevel(lvl)}
               className={`px-2 py-1 text-xs rounded-md transition-colors ${selectedLevel === lvl
-                  ? 'bg-[#2D2A26] text-white font-bold'
-                  : 'text-[#625D56] hover:bg-[#FAF4EB]'
+                ? 'bg-[#2D2A26] text-white font-bold'
+                : 'text-[#625D56] hover:bg-[#FAF4EB]'
                 }`}
             >
               {lvl === 'all' ? '全部' : lvl}

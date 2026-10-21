@@ -10,6 +10,7 @@ interface VirtualKeyboardProps {
   onTransformDakuten?: () => void;
   onTransformHandakuten?: () => void;
   onTransformSmall?: () => void;
+  showFloatingToggle?: boolean;
 }
 
 const DAKUTEN_MAP: Record<string, string> = {
@@ -60,7 +61,8 @@ export const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
   onSubmit,
   onTransformDakuten,
   onTransformHandakuten,
-  onTransformSmall
+  onTransformSmall,
+  showFloatingToggle = false
 }) => {
   const [scriptMode, setScriptMode] = useState<'hiragana' | 'katakana'>('hiragana');
 
@@ -95,25 +97,26 @@ export const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
 
   return (
     <>
-      {/* Floating Toggle Button */}
-      <button
-        onClick={onToggle}
-        className={`fixed bottom-4 right-4 z-40 flex items-center gap-2 px-3.5 py-2.5 rounded-full shadow-lg border transition-all duration-200 text-sm font-semibold select-none ${
-          isOpen
+      {/* Floating Toggle Button (Only when explicitly enabled) */}
+      {showFloatingToggle && (
+        <button
+          onClick={onToggle}
+          className={`fixed bottom-4 right-4 z-40 flex items-center gap-2 px-3.5 py-2.5 rounded-full shadow-lg border transition-all duration-200 text-sm font-semibold select-none ${isOpen
             ? 'bg-[#2D2A26] text-white border-[#1F2937]'
             : 'bg-white text-[#2D2A26] border-[#D5CBBF] hover:bg-[#FAF4EB]'
-        }`}
-        title="開啟/收合日文虛擬鍵盤"
-      >
-        <Keyboard className="w-4 h-4 text-[#8C6D53]" />
-        <span>{isOpen ? '收起鍵盤' : '日文虛擬鍵盤'}</span>
-      </button>
+            }`}
+          title="開啟/收合日文虛擬鍵盤"
+        >
+          <Keyboard className="w-4 h-4 text-[#8C6D53]" />
+          <span>{isOpen ? '收起鍵盤' : '日文虛擬鍵盤'}</span>
+        </button>
+      )}
 
       {/* Docked Keyboard Drawer */}
       {isOpen && (
-        <div className="fixed bottom-0 left-0 right-0 z-30 bg-[#F5EFE6] border-t-2 border-[#D5CBBF] shadow-2xl px-3 py-3 max-h-[42vh] overflow-y-auto">
+        <div className="fixed bottom-0 left-0 right-0 z-60 bg-[#F5EFE6] border-t-2 border-[#D5CBBF] shadow-2xl px-3 py-3 max-h-[44vh] overflow-y-auto">
           <div className="max-w-4xl mx-auto flex flex-col gap-2">
-            
+
             {/* Top Keyboard Bar: Script Switcher & Modifiers */}
             <div className="flex items-center justify-between gap-2 pb-1 border-b border-[#E2D8CC]">
               {/* Script Mode Toggle */}
@@ -121,22 +124,20 @@ export const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
                 <button
                   type="button"
                   onClick={() => setScriptMode('hiragana')}
-                  className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${
-                    scriptMode === 'hiragana'
-                      ? 'bg-[#8C6D53] text-white'
-                      : 'text-[#625D56] hover:text-[#2D2A26]'
-                  }`}
+                  className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${scriptMode === 'hiragana'
+                    ? 'bg-[#8C6D53] text-white'
+                    : 'text-[#625D56] hover:text-[#2D2A26]'
+                    }`}
                 >
                   平假名
                 </button>
                 <button
                   type="button"
                   onClick={() => setScriptMode('katakana')}
-                  className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${
-                    scriptMode === 'katakana'
-                      ? 'bg-[#8C6D53] text-white'
-                      : 'text-[#625D56] hover:text-[#2D2A26]'
-                  }`}
+                  className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${scriptMode === 'katakana'
+                    ? 'bg-[#8C6D53] text-white'
+                    : 'text-[#625D56] hover:text-[#2D2A26]'
+                    }`}
                 >
                   片假名
                 </button>
@@ -166,7 +167,7 @@ export const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
                   className="px-2.5 py-1 text-sm font-bold rounded-md bg-white border border-[#D5CBBF] hover:bg-[#FAF4EB] text-[#2D2A26] shadow-xs active:scale-95"
                   title="小字轉換 (小) 如: つ ➔ っ / や ➔ ゃ"
                 >
-                  小字 (っ/ゃ)
+                  小字
                 </button>
                 <button
                   type="button"

@@ -16,8 +16,9 @@ import {
   BookOpen,
   ArrowRight,
   Download,
-  Upload
+  Keyboard
 } from 'lucide-react';
+import { VirtualKeyboard, transformLastChar } from './VirtualKeyboard';
 
 interface VocabManagerProps {
   vocabList: VocabItem[];
@@ -27,8 +28,6 @@ interface VocabManagerProps {
   onRecordMistake: (mistake: Omit<MistakeItem, 'id' | 'failCount' | 'lastFailedAt'>) => void;
   onUpdateStats: (isCorrect: boolean) => void;
   onResetDefaultVocab: () => void;
-  activeVirtualKeyboardInput: string;
-  onFocusInputForVirtualKeyboard: (val: string, setter: (val: string) => void) => void;
 }
 
 export const VocabManager: React.FC<VocabManagerProps> = ({
@@ -64,6 +63,16 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [mascotState, setMascotState] = useState<'idle' | 'jumping' | 'thinking' | 'celebrating'>('idle');
   const [mascotMsg, setMascotMsg] = useState('看中文釋義，輸入對應的「假名讀音」！');
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+
+  const isTouchDevice = () => {
+    if (typeof window === 'undefined') return false;
+    return (
+      window.matchMedia('(pointer: coarse)').matches ||
+      'ontouchstart' in window ||
+      navigator.maxTouchPoints > 0
+    );
+  };
 
   // Open modal for new item
   const handleOpenAdd = () => {
@@ -210,15 +219,18 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 flex flex-col gap-6">
-      
+
       {/* Quiz Modal Overlay */}
       {isQuizActive && (
         <div className="fixed inset-0 z-50 bg-[#2D2A26]/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl border border-[#E8E2D9] max-w-lg w-full p-6 sm:p-8 shadow-2xl relative flex flex-col items-center">
-            
+
             {/* Close button */}
             <button
-              onClick={() => setIsQuizActive(false)}
+              onClick={() => {
+                setIsQuizActive(false);
+                setIsKeyboardOpen(false);
+              }}
               className="absolute top-4 right-4 p-2 text-[#78716C] hover:text-[#2D2A26] rounded-full hover:bg-[#FAF4EB]"
             >
               <X className="w-5 h-5" />
@@ -279,21 +291,41 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
 
                 {/* Typing Input */}
                 <form onSubmit={handleVerifyQuiz} className="w-full max-w-sm flex flex-col gap-3">
+                  {/* Virtual Keyboard Toggle for users without Japanese IME */}
+                  <div className="w-full flex items-center justify-between text-xs px-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setIsKeyboardOpen(!isKeyboardOpen)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all border ${isKeyboardOpen
+                          ? 'bg-[#2D2A26] text-white border-[#2D2A26] shadow-2xs'
+                          : 'bg-[#FAF4EB] text-[#8C6D53] border-[#D5CBBF] hover:bg-[#F2EAE0]'
+                        }`}
+                    >
+                      <Keyboard className="w-3.5 h-3.5" />
+                      <span>{isKeyboardOpen ? '收起鍵盤 (改用手機輸入法)' : '使用日文虛擬鍵盤 (無輸入法專用)'}</span>
+                    </button>
+                    {isKeyboardOpen && (
+                      <span className="text-[11px] font-semibold text-[#16A34A]">
+                        已防手機鍵盤遮擋
+                      </span>
+                    )}
+                  </div>
+
                   <div className="relative w-full">
                     <input
                       type="text"
-                      autoFocus
+                      autoFocus={!isTouchDevice()}
+                      inputMode={isKeyboardOpen ? 'none' : 'text'}
                       disabled={quizAnswered}
                       value={quizInput}
                       onChange={(e) => setQuizInput(e.target.value)}
-                      placeholder="請輸入假名讀音 (如：たべる)..."
-                      className={`w-full px-4 py-3 text-center text-lg font-bold rounded-xl border-2 transition-all outline-hidden ${
-                        quizAnswered
+                      placeholder={isKeyboardOpen ? '點擊下方鍵盤輸入假名...' : '請輸入假名讀音 (如：たべる)...'}
+                      className={`w-full px-4 py-3 text-center text-lg font-bold rounded-xl border-2 transition-all outline-hidden ${quizAnswered
                           ? quizIsCorrect
                             ? 'bg-[#F0FDF4] border-[#22C55E] text-[#15803D]'
                             : 'bg-[#FEF2F2] border-[#EF4444] text-[#B91C1C]'
                           : 'bg-white border-[#D5CBBF] text-[#2D2A26] focus:border-[#8C6D53]'
-                      }`}
+                        }`}
                     />
 
                     {quizAnswered && (
@@ -342,10 +374,6 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
                     )}
                   </div>
                 </form>
-
-                <p className="text-[11px] text-[#A8A29E] mt-4">
-                  提示：若無日文輸入法，可使用右下角「日文虛擬鍵盤」點擊輸入假名！
-                </p>
               </div>
             ) : (
               /* Quiz Summary */
@@ -380,7 +408,10 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
                     再測驗一次
                   </button>
                   <button
-                    onClick={() => setIsQuizActive(false)}
+                    onClick={() => {
+                      setIsQuizActive(false);
+                      setIsKeyboardOpen(false);
+                    }}
                     className="flex-1 py-2.5 bg-[#FAF4EB] text-[#2D2A26] border border-[#D5CBBF] font-bold rounded-xl text-sm"
                   >
                     返回單字庫
@@ -390,6 +421,20 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
             )}
           </div>
         </div>
+      )}
+
+      {/* In-quiz Virtual Keyboard Drawer */}
+      {isQuizActive && !quizCompleted && (
+        <VirtualKeyboard
+          isOpen={isKeyboardOpen}
+          onToggle={() => setIsKeyboardOpen(!isKeyboardOpen)}
+          onInsertChar={(char) => setQuizInput((prev) => prev + char)}
+          onDeleteChar={() => setQuizInput((prev) => prev.slice(0, -1))}
+          onSubmit={handleVerifyQuiz}
+          onTransformDakuten={() => setQuizInput((prev) => transformLastChar(prev, 'dakuten'))}
+          onTransformHandakuten={() => setQuizInput((prev) => transformLastChar(prev, 'handakuten'))}
+          onTransformSmall={() => setQuizInput((prev) => transformLastChar(prev, 'small'))}
+        />
       )}
 
       {/* Header & Controls Strip */}
@@ -470,11 +515,10 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
             <button
               key={lvl}
               onClick={() => setSelectedLevel(lvl)}
-              className={`px-2 py-1 text-xs rounded-md transition-colors ${
-                selectedLevel === lvl
+              className={`px-2 py-1 text-xs rounded-md transition-colors ${selectedLevel === lvl
                   ? 'bg-[#2D2A26] text-white font-bold'
                   : 'text-[#625D56] hover:bg-[#FAF4EB]'
-              }`}
+                }`}
             >
               {lvl === 'all' ? '全部' : lvl}
             </button>

@@ -19,7 +19,7 @@ import { KanaPractice } from './components/KanaPractice';
 import { VocabManager } from './components/VocabManager';
 import { MistakesReview } from './components/MistakesReview';
 import { GrammarPreview } from './components/GrammarPreview';
-import { VirtualKeyboard, transformLastChar } from './components/VirtualKeyboard';
+
 import { AuthModal } from './components/AuthModal';
 
 export default function App() {
@@ -38,7 +38,7 @@ export default function App() {
   });
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
-  const [isKeyboardOpen, setIsKeyboardOpen] = useState<boolean>(false);
+
 
   // Initialize Supabase Auth listener & initial load
   useEffect(() => {
@@ -194,78 +194,7 @@ export default function App() {
     });
   };
 
-  // Virtual Keyboard interactions with the active input element in DOM
-  const insertToActiveInput = (text: string) => {
-    const activeEl = document.activeElement as HTMLInputElement | HTMLTextAreaElement | null;
-    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
-      const start = activeEl.selectionStart ?? activeEl.value.length;
-      const end = activeEl.selectionEnd ?? activeEl.value.length;
-      const val = activeEl.value;
-      const nextVal = val.substring(0, start) + text + val.substring(end);
-      
-      // Dispatch React input event
-      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-        window.HTMLInputElement.prototype,
-        'value'
-      )?.set;
-      if (nativeInputValueSetter) {
-        nativeInputValueSetter.call(activeEl, nextVal);
-      } else {
-        activeEl.value = nextVal;
-      }
-      activeEl.dispatchEvent(new Event('input', { bubbles: true }));
-      activeEl.setSelectionRange(start + text.length, start + text.length);
-    }
-  };
 
-  const deleteFromActiveInput = () => {
-    const activeEl = document.activeElement as HTMLInputElement | HTMLTextAreaElement | null;
-    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
-      const start = activeEl.selectionStart ?? activeEl.value.length;
-      const end = activeEl.selectionEnd ?? activeEl.value.length;
-      const val = activeEl.value;
-      if (start === 0 && end === 0) return;
-      
-      const newPos = start === end ? start - 1 : start;
-      const nextVal = val.substring(0, newPos) + val.substring(end);
-      
-      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-        window.HTMLInputElement.prototype,
-        'value'
-      )?.set;
-      if (nativeInputValueSetter) {
-        nativeInputValueSetter.call(activeEl, nextVal);
-      } else {
-        activeEl.value = nextVal;
-      }
-      activeEl.dispatchEvent(new Event('input', { bubbles: true }));
-      activeEl.setSelectionRange(newPos, newPos);
-    }
-  };
-
-  const transformActiveInput = (type: 'dakuten' | 'handakuten' | 'small') => {
-    const activeEl = document.activeElement as HTMLInputElement | HTMLTextAreaElement | null;
-    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
-      const nextVal = transformLastChar(activeEl.value, type);
-      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-        window.HTMLInputElement.prototype,
-        'value'
-      )?.set;
-      if (nativeInputValueSetter) {
-        nativeInputValueSetter.call(activeEl, nextVal);
-      } else {
-        activeEl.value = nextVal;
-      }
-      activeEl.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-  };
-
-  const submitActiveInput = () => {
-    const activeEl = document.activeElement as HTMLInputElement | null;
-    if (activeEl?.form) {
-      activeEl.form.requestSubmit();
-    }
-  };
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF7F2] text-[#2D2A26] selection:bg-[#FBCFE8] selection:text-[#831843]">
@@ -297,8 +226,6 @@ export default function App() {
             onRecordMistake={handleRecordMistake}
             onUpdateStats={handleUpdateStats}
             onResetDefaultVocab={handleResetDefaultVocab}
-            activeVirtualKeyboardInput=""
-            onFocusInputForVirtualKeyboard={() => {}}
           />
         )}
 
@@ -315,17 +242,7 @@ export default function App() {
         {activeTab === 'grammar' && <GrammarPreview />}
       </main>
 
-      {/* Built-in Japanese Virtual Keyboard */}
-      <VirtualKeyboard
-        isOpen={isKeyboardOpen}
-        onToggle={() => setIsKeyboardOpen(!isKeyboardOpen)}
-        onInsertChar={insertToActiveInput}
-        onDeleteChar={deleteFromActiveInput}
-        onSubmit={submitActiveInput}
-        onTransformDakuten={() => transformActiveInput('dakuten')}
-        onTransformHandakuten={() => transformActiveInput('handakuten')}
-        onTransformSmall={() => transformActiveInput('small')}
-      />
+
 
       {/* Supabase Auth & Cloud Sync Modal */}
       <AuthModal

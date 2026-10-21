@@ -43,7 +43,7 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
   const [drillIsCorrect, setDrillIsCorrect] = useState<boolean | null>(null);
   const [drillCompleted, setDrillCompleted] = useState<boolean>(false);
   const [mascotState, setMascotState] = useState<'idle' | 'jumping' | 'thinking' | 'celebrating'>('idle');
-  const [mascotMsg, setMascotMsg] = useState('山羊學長特訓時間！消滅這個盲點吧！');
+  const [mascotMsg, setMascotMsg] = useState('糰子特訓時間！消滅這個盲點吧！');
 
   const filteredMistakes = mistakes.filter(item => {
     if (filterType === 'all') return true;
@@ -117,16 +117,16 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
   const totalAnswered = stats.totalKanaAnswered + stats.totalVocabAnswered;
   const userGoatTitle =
     totalAnswered < 15
-      ? '軟萌生麵糰 (Beginner)'
+      ? '軟萌生麵糰'
       : totalAnswered < 50
-      ? '可口白糰子 (Explorer)'
-      : totalAnswered < 150
-      ? '花見三色糰 (Scholar)'
-      : '極品糰子宗師 (Grand Dango Master)';
+        ? '可口白糰子'
+        : totalAnswered < 150
+          ? '花見三色糰'
+          : '極品糰子宗師';
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 flex flex-col gap-6">
-      
+
       {/* Analytics & Streak Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white border border-[#E8E2D9] rounded-2xl p-4 shadow-xs">
@@ -175,7 +175,7 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
         <div>
           <div className="flex items-center gap-2">
             <AlertCircle className="w-5 h-5 text-[#DC2626]" />
-            <h1 className="text-xl font-extrabold text-[#2D2A26]">Dango 錯題本</h1>
+            <h1 className="text-xl font-extrabold text-[#2D2A26]">錯題本</h1>
             <span className="text-xs font-bold px-2 py-0.5 rounded-sm bg-[#FEE2E2] text-[#DC2626]">
               {mistakes.length} 項錯題待消滅
             </span>
@@ -215,25 +215,22 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
       <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-[#E8E2D9] w-fit shadow-xs">
         <button
           onClick={() => setFilterType('all')}
-          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
-            filterType === 'all' ? 'bg-[#2D2A26] text-white' : 'text-[#625D56] hover:bg-[#FAF4EB]'
-          }`}
+          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${filterType === 'all' ? 'bg-[#2D2A26] text-white' : 'text-[#625D56] hover:bg-[#FAF4EB]'
+            }`}
         >
           全部 ({mistakes.length})
         </button>
         <button
           onClick={() => setFilterType('kana')}
-          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
-            filterType === 'kana' ? 'bg-[#2D2A26] text-white' : 'text-[#625D56] hover:bg-[#FAF4EB]'
-          }`}
+          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${filterType === 'kana' ? 'bg-[#2D2A26] text-white' : 'text-[#625D56] hover:bg-[#FAF4EB]'
+            }`}
         >
           五十音錯題 ({mistakes.filter(m => m.type === 'kana').length})
         </button>
         <button
           onClick={() => setFilterType('vocab')}
-          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
-            filterType === 'vocab' ? 'bg-[#2D2A26] text-white' : 'text-[#625D56] hover:bg-[#FAF4EB]'
-          }`}
+          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${filterType === 'vocab' ? 'bg-[#2D2A26] text-white' : 'text-[#625D56] hover:bg-[#FAF4EB]'
+            }`}
         >
           單字錯題 ({mistakes.filter(m => m.type === 'vocab').length})
         </button>
@@ -356,13 +353,12 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
                     value={drillInput}
                     onChange={(e) => setDrillInput(e.target.value)}
                     placeholder="請輸入正確拼音或讀音..."
-                    className={`w-full px-4 py-3 text-center text-lg font-bold rounded-xl border-2 outline-hidden ${
-                      drillAnswered
+                    className={`w-full px-4 py-3 text-center text-lg font-bold rounded-xl border-2 outline-hidden ${drillAnswered
                         ? drillIsCorrect
                           ? 'bg-[#F0FDF4] border-[#22C55E] text-[#15803D]'
                           : 'bg-[#FEF2F2] border-[#EF4444] text-[#B91C1C]'
                         : 'bg-white border-[#D5CBBF] text-[#2D2A26] focus:border-[#8C6D53]'
-                    }`}
+                      }`}
                   />
 
                   {drillAnswered && (

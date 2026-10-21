@@ -41,8 +41,17 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
 
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const isTouchDevice = () => {
+    if (typeof window === 'undefined') return false;
+    return (
+      window.matchMedia('(pointer: coarse)').matches ||
+      'ontouchstart' in window ||
+      navigator.maxTouchPoints > 0
+    );
+  };
+
   // Build pool and initialize session
-  const startNewSession = () => {
+  const startNewSession = (shouldAutoFocus: boolean = true) => {
     let pool: KanaItem[] = [];
 
     const getItemsFromScript = (data: KanaItem[]) => {
@@ -86,16 +95,19 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
     setMascotMessage('三色糰子準備就緒！');
 
     setTimeout(() => {
-      inputRef.current?.focus();
+      // 觸控裝置切換範圍不主動彈出鍵盤，電腦端則維持自動聚焦
+      if (shouldAutoFocus && !isTouchDevice()) {
+        inputRef.current?.focus();
+      }
       if (shuffled[0] && autoPlayAudio) {
         playJapaneseSpeech(shuffled[0].char);
       }
     }, 150);
   };
 
-  // Re-start session when scope filters change
+  // Re-start session when scope filters change (不強制彈出鍵盤)
   useEffect(() => {
-    startNewSession();
+    startNewSession(false);
   }, [selectedScript, includeSeion, includeDakuon, includeYoon]);
 
   const currentKana = queue[currentIndex];
@@ -157,7 +169,10 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
     setMascotMessage('下一題！看準假名，直接敲鍵盤！');
 
     setTimeout(() => {
-      inputRef.current?.focus();
+      // 觸控裝置不主動強制彈出鍵盤，電腦端則維持自動聚焦繼續答題
+      if (!isTouchDevice()) {
+        inputRef.current?.focus();
+      }
       if (queue[nextIdx] && autoPlayAudio) {
         playJapaneseSpeech(queue[nextIdx].char);
       }
@@ -257,7 +272,7 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
             </label>
 
             <button
-              onClick={startNewSession}
+              onClick={() => startNewSession(false)}
               className="flex items-center gap-1 text-xs text-[#8C6D53] hover:text-[#5E4733] font-medium ml-2"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -451,7 +466,7 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
 
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-sm">
             <button
-              onClick={startNewSession}
+              onClick={() => startNewSession()}
               className="w-full py-3 bg-[#2D2A26] text-white font-bold rounded-xl shadow-xs hover:bg-[#1E1C1A] transition-all flex items-center justify-center gap-2"
             >
               <RotateCcw className="w-4 h-4" />

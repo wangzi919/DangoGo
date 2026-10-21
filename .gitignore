@@ -1,0 +1,14 @@
+node_modules/
+dist/
+dist-ssr/
+build/
+coverage/
+*.local
+.env
+.env.*
+!.env.example
+.aistudio/
+.DS_Store
+Thumbs.db
+*.log
+*.tsbuildinfo

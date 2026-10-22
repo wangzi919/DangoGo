@@ -1,6 +1,0 @@
-{
-  "name": "NihonGoat",
-  "description": "現代專業的全方位日語學習 Web 應用程式：五十音硬派打字特訓、自訂單字庫、錯題本與 Supabase 雲端同步。",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

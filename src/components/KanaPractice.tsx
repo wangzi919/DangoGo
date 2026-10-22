@@ -3,7 +3,7 @@ import { KanaItem, KanaScript, KanaGroup, MistakeItem } from '../types';
 import { HIRAGANA_DATA, KATAKANA_DATA, isKanaAnswerCorrect } from '../data/kanaData';
 import { playJapaneseSpeech, playSuccessSound, playErrorSound } from '../lib/speech';
 import { Mascot } from './Mascot';
-import mascotConfuseImg from '../assets/images/mascot_confuse.png';
+import mascotCheerImg from '../assets/images/mascot_cheer.png';
 import { Volume2, RotateCcw, CheckCircle2, XCircle, ArrowRight, Sparkles, Filter } from 'lucide-react';
 
 interface KanaPracticeProps {
@@ -93,7 +93,7 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
     setSessionCorrectCount(0);
     setSessionTotalCount(shuffled.length);
     setMascotState('idle');
-    setMascotMessage('三色糰子準備就緒！');
+    setMascotMessage('糯米糰子準備就緒！');
 
     setTimeout(() => {
       if (shouldAutoFocus && !isMobileOrTouchDevice()) {
@@ -131,7 +131,7 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
       playSuccessSound();
       setSessionCorrectCount(prev => prev + 1);
       setMascotState('jumping');
-      setMascotMessage(`答對了！「${currentKana.char}」就是 [${currentKana.romaji.join(' / ')}]！🍡🎉`);
+      setMascotMessage(`答對了！「${currentKana.char}」就是 [${currentKana.romaji.join(' / ')}]！`);
     } else {
       playErrorSound();
       setMascotState('thinking');
@@ -198,8 +198,8 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
             <button
               onClick={() => setSelectedScript('hiragana')}
               className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${selectedScript === 'hiragana'
-                  ? 'bg-white text-[#2D2A26] shadow-2xs'
-                  : 'text-[#625D56] hover:text-[#2D2A26]'
+                ? 'bg-white text-[#2D2A26] shadow-2xs'
+                : 'text-[#625D56] hover:text-[#2D2A26]'
                 }`}
             >
               平假名
@@ -207,8 +207,8 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
             <button
               onClick={() => setSelectedScript('katakana')}
               className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${selectedScript === 'katakana'
-                  ? 'bg-white text-[#2D2A26] shadow-2xs'
-                  : 'text-[#625D56] hover:text-[#2D2A26]'
+                ? 'bg-white text-[#2D2A26] shadow-2xs'
+                : 'text-[#625D56] hover:text-[#2D2A26]'
                 }`}
             >
               片假名
@@ -216,8 +216,8 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
             <button
               onClick={() => setSelectedScript('both')}
               className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${selectedScript === 'both'
-                  ? 'bg-white text-[#2D2A26] shadow-2xs'
-                  : 'text-[#625D56] hover:text-[#2D2A26]'
+                ? 'bg-white text-[#2D2A26] shadow-2xs'
+                : 'text-[#625D56] hover:text-[#2D2A26]'
                 }`}
             >
               平/片混合
@@ -284,20 +284,12 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
         <div className="bg-white border border-[#E8E2D9] rounded-3xl p-4 sm:p-10 shadow-xs flex flex-col items-center relative overflow-hidden">
 
           {/* Progress Bar & Header Metadata */}
-          <div className="w-full flex flex-wrap items-center justify-between gap-x-3 gap-y-2 text-xs text-[#78716C] mb-4">
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-              <span className="font-bold text-[#2D2A26] bg-[#F5EFE6] px-2.5 py-0.5 rounded-md">
-                第 {currentIndex + 1} / {queue.length} 題
-              </span>
-              <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-[#FAF4EB] text-[#8C6D53] border border-[#E8E2D9]">
-                {currentKana.script === 'hiragana' ? '平假名' : '片假名'}
-              </span>
-              <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-[#FAF4EB] text-[#8C6D53] border border-[#E8E2D9]">
-                {currentKana.group === 'seion' ? '清音' : currentKana.group === 'dakuon' ? '濁音/半濁音' : '拗音'}
-              </span>
-            </div>
+          <div className="w-full flex items-center justify-between text-xs text-[#78716C] mb-4">
+            <span className="font-bold text-[#2D2A26] bg-[#F5EFE6] px-2.5 py-1 rounded-md">
+              第 {currentIndex + 1} / {queue.length} 題
+            </span>
 
-            <div className="font-mono tabular-nums text-xs font-semibold text-[#8C6D53] shrink-0 ml-auto sm:ml-0 bg-[#FAF4EB] sm:bg-transparent px-2.5 py-0.5 sm:p-0 rounded-md border sm:border-0 border-[#E8E2D9]">
+            <div className="font-mono tabular-nums text-xs font-semibold text-[#8C6D53]">
               正確率: {currentIndex > 0 ? ((sessionCorrectCount / currentIndex) * 100).toFixed(0) : 100}%
             </div>
           </div>
@@ -317,7 +309,7 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
               size="md"
               message={mascotMessage}
               showBubble={true}
-              customImage={mascotConfuseImg}
+              customImage={mascotCheerImg}
               disableConfetti={true}
             />
           </div>
@@ -358,10 +350,10 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
                 onChange={(e) => setUserInput(e.target.value)}
                 placeholder="請輸入羅馬拼音..."
                 className={`w-full px-4 py-3.5 text-center text-xl font-bold tracking-wider rounded-xl border-2 transition-all outline-hidden ${isAnswered
-                    ? isCorrect
-                      ? 'bg-[#F0FDF4] border-[#22C55E] text-[#15803D]'
-                      : 'bg-[#FEF2F2] border-[#EF4444] text-[#B91C1C]'
-                    : 'bg-white border-[#D5CBBF] text-[#2D2A26] focus:border-[#8C6D53] focus:ring-4 focus:ring-[#8C6D53]/10'
+                  ? isCorrect
+                    ? 'bg-[#F0FDF4] border-[#22C55E] text-[#15803D]'
+                    : 'bg-[#FEF2F2] border-[#EF4444] text-[#B91C1C]'
+                  : 'bg-white border-[#D5CBBF] text-[#2D2A26] focus:border-[#8C6D53] focus:ring-4 focus:ring-[#8C6D53]/10'
                   }`}
               />
 
@@ -429,7 +421,7 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
             size="lg"
             message="太強了！整串糰子大滿貫！你完成了一整輪五十音打字背誦！"
             showBubble={true}
-            customImage={mascotConfuseImg}
+            customImage={mascotCheerImg}
             disableConfetti={true}
           />
 

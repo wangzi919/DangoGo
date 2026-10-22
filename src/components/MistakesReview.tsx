@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { MistakeItem, UserStats } from '../types';
 import { playJapaneseSpeech, playSuccessSound, playErrorSound } from '../lib/speech';
 import { Mascot } from './Mascot';
+import mascotReadImg from '../assets/images/mascot_read.png';
 import {
   AlertCircle,
   Play,
   Trash2,
   Volume2,
   CheckCircle2,
-  XCircle,
   Flame,
   Award,
   BookOpen,
@@ -120,14 +120,14 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
     total < 15
       ? '軟萌生麵糰'
       : total < 50
-      ? '可口白糰子'
-      : total < 150
-      ? '花見三色糰'
-      : '極品糰子宗師';
+        ? '可口白糰子'
+        : total < 150
+          ? '花見三色糰'
+          : '極品糰子宗師';
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 flex flex-col gap-6">
-      
+
       {/* Analytics & Streak Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white border border-[#E8E2D9] rounded-2xl p-4 shadow-xs">
@@ -216,41 +216,36 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
       <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-[#E8E2D9] w-fit shadow-xs flex-wrap">
         <button
           onClick={() => setFilterType('all')}
-          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
-            filterType === 'all' ? 'bg-[#2D2A26] text-white' : 'text-[#625D56] hover:bg-[#FAF4EB]'
-          }`}
+          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${filterType === 'all' ? 'bg-[#2D2A26] text-white' : 'text-[#625D56] hover:bg-[#FAF4EB]'
+            }`}
         >
           全部 ({mistakes.length})
         </button>
         <button
           onClick={() => setFilterType('vocab')}
-          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
-            filterType === 'vocab' ? 'bg-[#2D2A26] text-white' : 'text-[#625D56] hover:bg-[#FAF4EB]'
-          }`}
+          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${filterType === 'vocab' ? 'bg-[#2D2A26] text-white' : 'text-[#625D56] hover:bg-[#FAF4EB]'
+            }`}
         >
           單字 ({mistakes.filter(m => m.type === 'vocab').length})
         </button>
         <button
           onClick={() => setFilterType('cloze')}
-          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
-            filterType === 'cloze' ? 'bg-[#2D2A26] text-white' : 'text-[#625D56] hover:bg-[#FAF4EB]'
-          }`}
+          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${filterType === 'cloze' ? 'bg-[#2D2A26] text-white' : 'text-[#625D56] hover:bg-[#FAF4EB]'
+            }`}
         >
           句型填空 ({mistakes.filter(m => m.type === 'cloze').length})
         </button>
         <button
           onClick={() => setFilterType('translation')}
-          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
-            filterType === 'translation' ? 'bg-[#2D2A26] text-white' : 'text-[#625D56] hover:bg-[#FAF4EB]'
-          }`}
+          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${filterType === 'translation' ? 'bg-[#2D2A26] text-white' : 'text-[#625D56] hover:bg-[#FAF4EB]'
+            }`}
         >
           翻譯 ({mistakes.filter(m => m.type === 'translation').length})
         </button>
         <button
           onClick={() => setFilterType('kana')}
-          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
-            filterType === 'kana' ? 'bg-[#2D2A26] text-white' : 'text-[#625D56] hover:bg-[#FAF4EB]'
-          }`}
+          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${filterType === 'kana' ? 'bg-[#2D2A26] text-white' : 'text-[#625D56] hover:bg-[#FAF4EB]'
+            }`}
         >
           五十音 ({mistakes.filter(m => m.type === 'kana').length})
         </button>
@@ -313,8 +308,9 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
           <Mascot
             state="celebrating"
             size="md"
-            message="目前沒有任何錯題！太完美了！"
+            message="複習完畢，目前沒有任何錯題。"
             showBubble={true}
+            customImage={mascotReadImg}
           />
           <h3 className="text-lg font-bold text-[#2D2A26] mt-4">
             太棒了！錯題本空空如也！
@@ -354,6 +350,7 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
                   size="sm"
                   message={mascotMsg}
                   showBubble={true}
+                  customImage={mascotReadImg}
                 />
 
                 <div className="my-5 text-center">
@@ -373,13 +370,12 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
                     value={drillInput}
                     onChange={(e) => setDrillInput(e.target.value)}
                     placeholder="請輸入正確拼音或讀音..."
-                    className={`w-full px-4 py-3 text-center text-lg font-bold rounded-xl border-2 outline-hidden ${
-                      drillAnswered
-                        ? drillIsCorrect
-                          ? 'bg-[#F0FDF4] border-[#22C55E] text-[#15803D]'
-                          : 'bg-[#FEF2F2] border-[#EF4444] text-[#B91C1C]'
-                        : 'bg-white border-[#D5CBBF] text-[#2D2A26] focus:border-[#8C6D53]'
-                    }`}
+                    className={`w-full px-4 py-3 text-center text-lg font-bold rounded-xl border-2 outline-hidden ${drillAnswered
+                      ? drillIsCorrect
+                        ? 'bg-[#F0FDF4] border-[#22C55E] text-[#15803D]'
+                        : 'bg-[#FEF2F2] border-[#EF4444] text-[#B91C1C]'
+                      : 'bg-white border-[#D5CBBF] text-[#2D2A26] focus:border-[#8C6D53]'
+                      }`}
                   />
 
                   {drillAnswered && (
@@ -424,6 +420,7 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
                   size="md"
                   message="所有錯題特訓完成！太棒了！"
                   showBubble={true}
+                  customImage={mascotReadImg}
                 />
                 <h4 className="text-xl font-black text-[#2D2A26] mt-4">特訓圓滿結束</h4>
                 <p className="text-xs text-[#78716C] mt-1 mb-6">

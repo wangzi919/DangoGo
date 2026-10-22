@@ -60,9 +60,9 @@ export const Mascot: React.FC<MascotProps> = ({
       {/* Speech Bubble */}
       {showBubble && (
         <div
-          className={`mb-2 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-xl shadow-xs border transition-all duration-300 max-w-[270px] text-center ${
+          className={`mb-2 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-xl shadow-xs border transition-colors max-w-[270px] text-center ${
             state === 'jumping' || state === 'celebrating'
-              ? 'bg-[#FFF0F5] text-[#9D174D] border-[#FBCFE8] scale-105'
+              ? 'bg-[#FFF0F5] text-[#9D174D] border-[#FBCFE8]'
               : state === 'thinking'
               ? 'bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]'
               : 'bg-white text-[#4A453E] border-[#E8E2D9]'
@@ -81,18 +81,10 @@ export const Mascot: React.FC<MascotProps> = ({
         </div>
       )}
 
-      {/* Mascot Image with Animated State */}
+      {/* Mascot Image */}
       <div className="relative">
         <div
-          className={`relative rounded-2xl p-1 transition-transform duration-300 overflow-hidden flex items-center justify-center ${
-            state === 'jumping'
-              ? 'animate-dango-bounce filter drop-shadow-md'
-              : state === 'thinking'
-              ? 'animate-dango-squish filter drop-shadow-sm'
-              : state === 'celebrating'
-              ? 'animate-bounce filter drop-shadow-lg'
-              : 'hover:scale-105 filter drop-shadow-xs'
-          } ${sizeClasses}`}
+          className={`relative rounded-2xl p-1 transition-transform flex items-center justify-center filter drop-shadow-xs ${sizeClasses}`}
         >
           <img
             src={activeImage}
@@ -105,13 +97,6 @@ export const Mascot: React.FC<MascotProps> = ({
           {state === 'thinking' && !customImage && (
             <div className="absolute top-1 right-1 bg-amber-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shadow-md animate-pulse">
               ?
-            </div>
-          )}
-
-          {/* Celebrating sparkles only when confetti is not disabled */}
-          {!disableConfetti && (state === 'celebrating' || state === 'jumping') && (
-            <div className="absolute -top-1 -right-1 text-base animate-ping">
-              🍡
             </div>
           )}
         </div>

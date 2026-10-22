@@ -119,10 +119,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </button>
 
         {/* Mascot Header */}
-        <div className="flex flex-col items-center text-center mb-5">
+        <div className="w-full flex flex-col items-center justify-center text-center mb-5">
           <Mascot
             state="idle"
-            size="sm"
+            size="md"
             message={user ? `歡迎回來，${user.email?.split('@')[0]}！` : '登入後可記錄學習進度與生詞！'}
             showBubble={true}
           />

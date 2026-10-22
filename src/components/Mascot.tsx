@@ -82,14 +82,14 @@ export const Mascot: React.FC<MascotProps> = ({
       )}
 
       {/* Mascot Image */}
-      <div className="relative">
+      <div className="relative flex flex-col items-center justify-center">
         <div
-          className={`relative rounded-2xl p-1 transition-transform flex items-center justify-center filter drop-shadow-xs ${sizeClasses}`}
+          className={`relative rounded-2xl p-1 transition-transform flex items-center justify-center filter drop-shadow-xs mx-auto ${sizeClasses}`}
         >
           <img
             src={activeImage}
             alt="DangoGo Mascot"
-            className="w-full h-full object-contain"
+            className="w-full h-full object-contain mx-auto"
             referrerPolicy="no-referrer"
           />
 

@@ -93,7 +93,7 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
     setSessionCorrectCount(0);
     setSessionTotalCount(shuffled.length);
     setMascotState('idle');
-    setMascotMessage('糯米糰子準備就緒！');
+    setMascotMessage('白糰子準備就緒！');
 
     setTimeout(() => {
       if (shouldAutoFocus && !isMobileOrTouchDevice()) {

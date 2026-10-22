@@ -46,10 +46,10 @@ export const Mascot: React.FC<MascotProps> = ({
 
   const defaultMessages = {
     idle: 'ぷにっ♪ 今天也跟 Dango 糰子一起衝刺日語！',
-    jumping: '正解！糰子開心地彈跳了起來！🍡🎉',
-    thinking: 'むむ…？ 糰子歪頭思考中，再試一次吧！💭',
-    celebrating: '特訓大成功！三色糰子為你慶祝！🍡✨',
-    cheering: '軟Q又堅持！越嚼越有日語實力！💪'
+    jumping: '正解！糰子開心地彈跳了起來！',
+    thinking: 'むむ…？ 糰子歪頭思考中，再試一次吧！',
+    celebrating: '特訓大成功！三色糰子為你慶祝！',
+    cheering: '軟Q又堅持！越嚼越有日語實力！'
   };
 
   const currentMessage = message || defaultMessages[state];
@@ -60,23 +60,21 @@ export const Mascot: React.FC<MascotProps> = ({
       {/* Speech Bubble */}
       {showBubble && (
         <div
-          className={`mb-2 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-xl shadow-xs border transition-colors max-w-[270px] text-center ${
-            state === 'jumping' || state === 'celebrating'
+          className={`mb-2 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-xl shadow-xs border transition-colors max-w-[270px] text-center ${state === 'jumping' || state === 'celebrating'
               ? 'bg-[#FFF0F5] text-[#9D174D] border-[#FBCFE8]'
               : state === 'thinking'
-              ? 'bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]'
-              : 'bg-white text-[#4A453E] border-[#E8E2D9]'
-          }`}
+                ? 'bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]'
+                : 'bg-white text-[#4A453E] border-[#E8E2D9]'
+            }`}
         >
           {currentMessage}
           <div
-            className={`w-2 h-2 rotate-45 mx-auto -mb-2 border-r border-b ${
-              state === 'jumping' || state === 'celebrating'
+            className={`w-2 h-2 rotate-45 mx-auto -mb-2 border-r border-b ${state === 'jumping' || state === 'celebrating'
                 ? 'bg-[#FFF0F5] border-[#FBCFE8]'
                 : state === 'thinking'
-                ? 'bg-[#FEF3C7] border-[#FDE68A]'
-                : 'bg-white border-[#E8E2D9]'
-            }`}
+                  ? 'bg-[#FEF3C7] border-[#FDE68A]'
+                  : 'bg-white border-[#E8E2D9]'
+              }`}
           />
         </div>
       )}
@@ -84,7 +82,8 @@ export const Mascot: React.FC<MascotProps> = ({
       {/* Mascot Image */}
       <div className="relative flex flex-col items-center justify-center">
         <div
-          className={`relative rounded-2xl p-1 transition-transform flex items-center justify-center filter drop-shadow-xs mx-auto ${sizeClasses}`}
+          className={`relative rounded-2xl p-1 transition-transform flex items-center justify-center filter drop-shadow-xs mx-auto ${state === 'jumping' ? 'animate-dango-bounce filter drop-shadow-md' : ''
+            } ${sizeClasses}`}
         >
           <img
             src={activeImage}

@@ -4,6 +4,7 @@ import { HIRAGANA_DATA, KATAKANA_DATA, isKanaAnswerCorrect } from '../data/kanaD
 import { playJapaneseSpeech, playSuccessSound, playErrorSound } from '../lib/speech';
 import { Mascot } from './Mascot';
 import mascotCheerImg from '../assets/images/mascot_cheer.png';
+import mascotUpsetImg from '../assets/images/mascot_upset.png';
 import { Volume2, RotateCcw, CheckCircle2, XCircle, ArrowRight, Sparkles, Filter } from 'lucide-react';
 
 interface KanaPracticeProps {
@@ -135,7 +136,7 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
     } else {
       playErrorSound();
       setMascotState('thinking');
-      setMascotMessage(`唔… 糰子被戳扁扁！「${currentKana.char}」的讀音是 [${currentKana.romaji.join(' / ')}] 💭`);
+      setMascotMessage(`唔… 糰子被戳扁扁！「${currentKana.char}」的讀音是 [${currentKana.romaji.join(' / ')}]`);
 
       // Add to mistakes record
       onRecordMistake({
@@ -309,7 +310,7 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
               size="md"
               message={mascotMessage}
               showBubble={true}
-              customImage={mascotCheerImg}
+              customImage={isAnswered && !isCorrect ? mascotUpsetImg : mascotCheerImg}
               disableConfetti={true}
             />
           </div>

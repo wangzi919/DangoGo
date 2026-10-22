@@ -1,50 +1,48 @@
 import React, { useState } from 'react';
-import { VocabItem, MistakeItem } from '../types';
-import { playJapaneseSpeech, playSuccessSound, playErrorSound } from '../lib/speech';
+import { TextbookVocabItem, VocabItem } from '../types';
+import { playJapaneseSpeech } from '../lib/speech';
 import {
   Plus,
   Search,
   Volume2,
   Trash2,
   Edit3,
-  Play,
-  RotateCcw,
-  CheckCircle2,
-  XCircle,
   X,
   BookOpen,
-  ArrowRight,
   Download,
-  Keyboard
+  Filter,
+  Layers
 } from 'lucide-react';
-import { VirtualKeyboard, transformLastChar } from './VirtualKeyboard';
 
 interface VocabManagerProps {
-  vocabList: VocabItem[];
+  textbookVocab: TextbookVocabItem[];
+  customVocab: VocabItem[];
   onAddVocab: (item: Omit<VocabItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
   onUpdateVocab: (item: VocabItem) => void;
   onDeleteVocab: (id: string) => void;
-  onRecordMistake: (mistake: Omit<MistakeItem, 'id' | 'failCount' | 'lastFailedAt'>) => void;
-  onUpdateStats: (isCorrect: boolean) => void;
-  onResetDefaultVocab: () => void;
+  onStartPractice?: () => void;
   activeVirtualKeyboardInput?: string;
   onFocusInputForVirtualKeyboard?: (val: string, setter: (val: string) => void) => void;
 }
 
 export const VocabManager: React.FC<VocabManagerProps> = ({
-  vocabList,
+  textbookVocab,
+  customVocab,
   onAddVocab,
   onUpdateVocab,
   onDeleteVocab,
-  onRecordMistake,
-  onUpdateStats,
-  onResetDefaultVocab
+  onStartPractice
 }) => {
+  // Source selector: 'textbook' or 'custom'
+  const [sourceType, setSourceType] = useState<'textbook' | 'custom'>(
+    textbookVocab.length > 0 ? 'textbook' : 'custom'
+  );
+
   // Search & Filter
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedLevel, setSelectedLevel] = useState<string>('all');
+  const [selectedLesson, setSelectedLesson] = useState<number | 'all'>('all');
 
-  // Modal State for Add / Edit
+  // Modal State for Add / Edit custom item
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<VocabItem | null>(null);
   const [formWord, setFormWord] = useState('');
@@ -53,26 +51,8 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
   const [formExample, setFormExample] = useState('');
   const [formLevel, setFormLevel] = useState('N5');
 
-  // Quiz Mode State
-  const [isQuizActive, setIsQuizActive] = useState(false);
-  const [quizQueue, setQuizQueue] = useState<VocabItem[]>([]);
-  const [quizIndex, setQuizIndex] = useState(0);
-  const [quizInput, setQuizInput] = useState('');
-  const [quizAnswered, setQuizAnswered] = useState(false);
-  const [quizIsCorrect, setQuizIsCorrect] = useState<boolean | null>(null);
-  const [quizCorrectCount, setQuizCorrectCount] = useState(0);
-  const [quizCompleted, setQuizCompleted] = useState(false);
-  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
-
-  // Detect touch devices to avoid unwanted mobile keyboard popups on modal open
-  const isTouchDevice = () => {
-    if (typeof window === 'undefined') return false;
-    return (
-      window.matchMedia('(pointer: coarse)').matches ||
-      'ontouchstart' in window ||
-      navigator.maxTouchPoints > 0
-    );
-  };
+  // Available lessons from textbook
+  const allLessons = Array.from(new Set(textbookVocab.map(v => v.lesson))).sort((a, b) => a - b);
 
   // Open modal for new item
   const handleOpenAdd = () => {
@@ -123,328 +103,72 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
     setIsModalOpen(false);
   };
 
-  // Start Vocabulary Quiz
-  const startQuiz = () => {
-    const pool = vocabList.length > 0 ? [...vocabList] : [];
-    if (pool.length === 0) return;
-
-    // Shuffle
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [pool[i], pool[j]] = [pool[j], pool[i]];
-    }
-
-    setQuizQueue(pool);
-    setQuizIndex(0);
-    setQuizInput('');
-    setQuizAnswered(false);
-    setQuizIsCorrect(null);
-    setQuizCorrectCount(0);
-    setQuizCompleted(false);
-    setIsKeyboardOpen(false);
-    setIsQuizActive(true);
-  };
-
-  const currentQuizItem = quizQueue[quizIndex];
-
-  const handleVerifyQuiz = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!currentQuizItem || quizAnswered || !quizInput.trim()) return;
-
-    const cleanInput = quizInput.trim().toLowerCase();
-    const cleanExpected = currentQuizItem.reading.trim().toLowerCase();
-    const correct = cleanInput === cleanExpected;
-
-    setQuizAnswered(true);
-    setQuizIsCorrect(correct);
-    onUpdateStats(correct);
-
-    if (correct) {
-      playSuccessSound();
-      setQuizCorrectCount(prev => prev + 1);
-    } else {
-      playErrorSound();
-      onRecordMistake({
-        targetId: currentQuizItem.id,
-        type: 'vocab',
-        prompt: `${currentQuizItem.meaning} (${currentQuizItem.word})`,
-        expected: [currentQuizItem.reading],
-        display: `單字：${currentQuizItem.word} [${currentQuizItem.reading}] - ${currentQuizItem.meaning}`
-      });
-    }
-
-    playJapaneseSpeech(currentQuizItem.word);
-  };
-
-  const handleNextQuiz = () => {
-    if (quizIndex + 1 >= quizQueue.length) {
-      setQuizCompleted(true);
-      return;
-    }
-    const next = quizIndex + 1;
-    setQuizIndex(next);
-    setQuizInput('');
-    setQuizAnswered(false);
-    setQuizIsCorrect(null);
-  };
-
   // Export JSON backup
   const handleExportJson = () => {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(vocabList, null, 2));
+    const dataToExport = sourceType === 'textbook' ? textbookVocab : customVocab;
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(dataToExport, null, 2));
     const dlAnchorElem = document.createElement('a');
     dlAnchorElem.setAttribute('href', dataStr);
-    dlAnchorElem.setAttribute('download', `dango_vocab_${new Date().toISOString().split('T')[0]}.json`);
+    dlAnchorElem.setAttribute('download', `dango_${sourceType}_vocab_${new Date().toISOString().split('T')[0]}.json`);
     dlAnchorElem.click();
   };
 
-  // Filtered vocabulary list
-  const filteredList = vocabList.filter(item => {
+  // Filtered lists
+  const filteredTextbookList = textbookVocab.filter(item => {
     const matchesSearch =
       item.word.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.reading.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.meaning.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesLevel = selectedLevel === 'all' || item.level === selectedLevel;
-    return matchesSearch && matchesLevel;
+    const matchesLesson = selectedLesson === 'all' || item.lesson === selectedLesson;
+    return matchesSearch && matchesLesson;
+  });
+
+  const filteredCustomList = customVocab.filter(item => {
+    return (
+      item.word.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.reading.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.meaning.toLowerCase().includes(searchTerm.toLowerCase())
+    );
   });
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 flex flex-col gap-6">
-
-      {/* Quiz Modal Overlay - Positioned near top with generous bottom clearance to avoid keyboard clipping */}
-      {isQuizActive && (
-        <div className="fixed inset-0 z-50 bg-[#2D2A26]/60 backdrop-blur-xs flex justify-center items-start pt-3 sm:pt-6 px-3 pb-64 overflow-y-auto">
-          <div className="bg-white rounded-2xl border border-[#E8E2D9] max-w-md w-full p-4 sm:p-5 shadow-2xl relative flex flex-col">
-
-            {/* Header / Close button */}
-            <div className="flex items-center justify-between text-xs text-[#78716C] mb-2 pb-2 border-b border-[#F0EBE3]">
-              <span className="font-bold text-[#2D2A26]">
-                單字測驗（第 {quizIndex + 1} / {quizQueue.length} 題）
-              </span>
-              <button
-                onClick={() => {
-                  setIsQuizActive(false);
-                  setIsKeyboardOpen(false);
-                }}
-                className="p-1 text-[#78716C] hover:text-[#2D2A26] rounded-md hover:bg-[#FAF4EB]"
-                title="關閉測驗"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {!quizCompleted && currentQuizItem ? (
-              <div className="w-full flex flex-col">
-                {/* Question Prompt */}
-                <div className="my-2 text-center">
-                  <div className="text-xs font-bold text-[#8C6D53] uppercase tracking-wider mb-0.5">
-                    中文釋義
-                  </div>
-                  <div className="text-2xl sm:text-3xl font-extrabold text-[#2D2A26]">
-                    {currentQuizItem.meaning}
-                  </div>
-                  <div className="text-sm font-medium text-[#78716C] mt-1 flex items-center justify-center gap-1.5">
-                    <span>漢字：{currentQuizItem.word}</span>
-                    <button
-                      type="button"
-                      onClick={() => playJapaneseSpeech(currentQuizItem.word)}
-                      className="p-1 rounded-full text-[#8C6D53] hover:bg-[#FAF4EB]"
-                      title="發音"
-                    >
-                      <Volume2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  {currentQuizItem.example && (
-                    <div className="text-xs text-[#A8A29E] mt-1.5 italic max-w-sm mx-auto">
-                      例句：{currentQuizItem.example}
-                    </div>
-                  )}
-                </div>
-
-                {/* Typing Input & Virtual Keyboard Toggle */}
-                <form onSubmit={handleVerifyQuiz} className="w-full flex flex-col gap-2.5 mt-2">
-
-                  {/* Virtual Keyboard Toggle Button (with anti-keyboard-overlap indicator) */}
-                  <div className="w-full flex items-center justify-between text-xs px-0.5">
-                    <button
-                      type="button"
-                      onClick={() => setIsKeyboardOpen(!isKeyboardOpen)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all border ${isKeyboardOpen
-                        ? 'bg-[#2D2A26] text-white border-[#2D2A26] shadow-2xs'
-                        : 'bg-[#FAF4EB] text-[#8C6D53] border-[#D5CBBF] hover:bg-[#F2EAE0]'
-                        }`}
-                    >
-                      <Keyboard className="w-3.5 h-3.5" />
-                      <span>{isKeyboardOpen ? '收起鍵盤 (改用手機輸入法)' : '使用日文虛擬鍵盤 (無輸入法專用)'}</span>
-                    </button>
-                    {isKeyboardOpen && (
-                      <span className="text-[11px] font-semibold text-[#16A34A]">
-                        已防手機鍵盤遮擋
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="relative w-full">
-                    <input
-                      type="text"
-                      autoFocus={!isTouchDevice()}
-                      inputMode={isKeyboardOpen ? 'none' : 'text'}
-                      disabled={quizAnswered}
-                      value={quizInput}
-                      onChange={(e) => setQuizInput(e.target.value)}
-                      placeholder={isKeyboardOpen ? '點擊下方鍵盤輸入假名...' : '請輸入假名...'}
-                      className={`w-full px-4 py-2.5 text-center text-lg font-bold rounded-xl border-2 transition-all outline-hidden ${quizAnswered
-                        ? quizIsCorrect
-                          ? 'bg-[#F0FDF4] border-[#22C55E] text-[#15803D]'
-                          : 'bg-[#FEF2F2] border-[#EF4444] text-[#B91C1C]'
-                        : 'bg-white border-[#D5CBBF] text-[#2D2A26] focus:border-[#8C6D53]'
-                        }`}
-                    />
-
-                    {quizAnswered && (
-                      <div className="absolute right-3.5 top-1/2 -translate-y-1/2">
-                        {quizIsCorrect ? (
-                          <CheckCircle2 className="w-5 h-5 text-[#16A34A]" />
-                        ) : (
-                          <XCircle className="w-5 h-5 text-[#DC2626]" />
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Simple result & answer block (正確、錯誤、答案) */}
-                  {quizAnswered && (
-                    <div
-                      className={`p-2.5 rounded-xl text-center text-xs sm:text-sm font-bold border transition-all ${quizIsCorrect
-                        ? 'bg-[#F0FDF4] border-[#BBF7D0] text-[#15803D]'
-                        : 'bg-[#FEF2F2] border-[#FECACA] text-[#B91C1C]'
-                        }`}
-                    >
-                      {quizIsCorrect ? (
-                        <div className="flex items-center justify-center gap-1.5">
-                          <CheckCircle2 className="w-4 h-4 shrink-0" />
-                          <span>回答正確！答案：<span className="font-mono underline font-black">{currentQuizItem.reading}</span></span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center gap-1.5">
-                          <XCircle className="w-4 h-4 shrink-0" />
-                          <span>回答錯誤！正確答案：<span className="font-mono underline font-black">{currentQuizItem.reading}</span></span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="mt-1">
-                    {!quizAnswered ? (
-                      <button
-                        type="submit"
-                        disabled={!quizInput.trim()}
-                        className="w-full py-2.5 bg-[#2D2A26] text-white font-bold rounded-xl shadow-xs hover:bg-[#1E1C1A] disabled:opacity-40 transition-all text-sm"
-                      >
-                        確認送出 (Enter)
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={handleNextQuiz}
-                        autoFocus
-                        className="w-full py-2.5 bg-[#8C6D53] text-white font-bold rounded-xl shadow-xs hover:bg-[#735842] transition-all flex items-center justify-center gap-2 text-sm"
-                      >
-                        <span>下一題 (Enter)</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                </form>
-              </div>
-            ) : (
-              /* Quiz Summary */
-              <div className="w-full flex flex-col items-center text-center py-2">
-                <h4 className="text-xl font-black text-[#2D2A26] mb-4">單字測驗完成</h4>
-                <div className="grid grid-cols-2 gap-3 w-full mb-5">
-                  <div className="p-3 bg-[#F0FDF4] rounded-xl border border-[#BBF7D0]">
-                    <div className="text-xs text-[#15803D]">答對</div>
-                    <div className="text-xl font-black text-[#15803D] tabular-nums mt-0.5">
-                      {quizCorrectCount} 題
-                    </div>
-                  </div>
-                  <div className="p-3 bg-[#FEF2F2] rounded-xl border border-[#FECACA]">
-                    <div className="text-xs text-[#B91C1C]">答錯</div>
-                    <div className="text-xl font-black text-[#B91C1C] tabular-nums mt-0.5">
-                      {quizQueue.length - quizCorrectCount} 題
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex gap-2 w-full">
-                  <button
-                    onClick={startQuiz}
-                    className="flex-1 py-2.5 bg-[#2D2A26] text-white font-bold rounded-xl text-sm"
-                  >
-                    再測驗一次
-                  </button>
-                  <button
-                    onClick={() => {
-                      setIsQuizActive(false);
-                      setIsKeyboardOpen(false);
-                    }}
-                    className="flex-1 py-2.5 bg-[#FAF4EB] text-[#2D2A26] border border-[#D5CBBF] font-bold rounded-xl text-sm"
-                  >
-                    返回單字庫
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* In-quiz Virtual Keyboard (directly mutates quiz input with dakuten/handakuten/small kana support) */}
-      {isQuizActive && !quizCompleted && (
-        <VirtualKeyboard
-          isOpen={isKeyboardOpen}
-          onToggle={() => setIsKeyboardOpen(!isKeyboardOpen)}
-          onInsertChar={(char) => setQuizInput((prev) => prev + char)}
-          onDeleteChar={() => setQuizInput((prev) => prev.slice(0, -1))}
-          onSubmit={handleVerifyQuiz}
-          onTransformDakuten={() => setQuizInput((prev) => transformLastChar(prev, 'dakuten'))}
-          onTransformHandakuten={() => setQuizInput((prev) => transformLastChar(prev, 'handakuten'))}
-          onTransformSmall={() => setQuizInput((prev) => transformLastChar(prev, 'small'))}
-          showFloatingToggle={false}
-        />
-      )}
-
+      
       {/* Header & Controls Strip */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <BookOpen className="w-5 h-5 text-[#8C6D53]" />
-            <h1 className="text-xl font-extrabold text-[#2D2A26]">自訂單字庫</h1>
+            <h1 className="text-xl font-extrabold text-[#2D2A26]">單字庫</h1>
             <span className="text-xs font-semibold px-2 py-0.5 rounded-sm bg-[#EFE9DF] text-[#8C6D53]">
-              {vocabList.length} 個單字
+              {sourceType === 'textbook' ? `${textbookVocab.length} 個課本單字` : `${customVocab.length} 個自訂單字`}
             </span>
           </div>
           <p className="text-xs text-[#78716C] mt-0.5">
-            日文單字、假名讀音、中文釋義與例句庫，雲端自動雙向同步。
+            收錄學校課本各課官方生詞與個人自訂生詞，支援標準音訊朗讀。
           </p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={startQuiz}
-            disabled={vocabList.length === 0}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-[#8C6D53] text-white hover:bg-[#735842] shadow-xs disabled:opacity-40 transition-colors"
-          >
-            <Play className="w-3.5 h-3.5 fill-current" />
-            <span>開始單字測驗</span>
-          </button>
+          {onStartPractice && (
+            <button
+              onClick={onStartPractice}
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-[#8C6D53] text-white hover:bg-[#735842] shadow-xs transition-colors"
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>前往練習特訓</span>
+            </button>
+          )}
 
-          <button
-            onClick={handleOpenAdd}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-[#2D2A26] text-white hover:bg-[#1E1C1A] shadow-xs transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>新增單字</span>
-          </button>
+          {sourceType === 'custom' && (
+            <button
+              onClick={handleOpenAdd}
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-[#2D2A26] text-white hover:bg-[#1E1C1A] shadow-xs transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>新增單字</span>
+            </button>
+          )}
 
           <button
             onClick={handleExportJson}
@@ -453,134 +177,250 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
           >
             <Download className="w-4 h-4" />
           </button>
+        </div>
+      </div>
 
+      {/* Source Switcher: 課本單字 vs 個人自訂單字 */}
+      <div className="flex items-center justify-between flex-wrap gap-3 bg-white border border-[#E8E2D9] rounded-2xl p-3 shadow-xs">
+        
+        {/* Source Segmented Control */}
+        <div className="flex items-center bg-[#FAF4EB] p-1 rounded-xl border border-[#E8E2D9]">
           <button
-            onClick={onResetDefaultVocab}
-            title="重設為預設 N5 單字庫"
-            className="p-2 text-xs font-medium rounded-xl bg-white border border-[#D5CBBF] text-[#78716C] hover:bg-[#FAF4EB]"
+            onClick={() => setSourceType('textbook')}
+            className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+              sourceType === 'textbook'
+                ? 'bg-white text-[#2D2A26] shadow-2xs'
+                : 'text-[#625D56] hover:text-[#2D2A26]'
+            }`}
           >
-            <RotateCcw className="w-4 h-4" />
+            課本分課單字 ({textbookVocab.length})
+          </button>
+          <button
+            onClick={() => setSourceType('custom')}
+            className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+              sourceType === 'custom'
+                ? 'bg-white text-[#2D2A26] shadow-2xs'
+                : 'text-[#625D56] hover:text-[#2D2A26]'
+            }`}
+          >
+            個人自訂生詞 ({customVocab.length})
           </button>
         </div>
-      </div>
 
-      {/* Search & Level Filter */}
-      <div className="bg-white border border-[#E8E2D9] rounded-2xl p-3 flex flex-col sm:flex-row items-center gap-3 shadow-xs">
-        <div className="relative flex-1 w-full">
-          <Search className="w-4 h-4 text-[#A8A29E] absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="搜尋單字、假名讀音、中文釋義..."
-            className="w-full pl-9 pr-3 py-1.5 text-xs sm:text-sm bg-transparent outline-hidden text-[#2D2A26]"
-          />
-          {searchTerm && (
+        {/* Lesson Filter (when viewing textbook vocab) */}
+        {sourceType === 'textbook' && (
+          <div className="flex items-center gap-1.5 overflow-x-auto">
+            <span className="text-xs text-[#78716C] font-semibold whitespace-nowrap">課次：</span>
             <button
-              onClick={() => setSearchTerm('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#A8A29E] hover:text-[#2D2A26]"
+              onClick={() => setSelectedLesson('all')}
+              className={`px-2.5 py-1 text-xs rounded-md font-bold transition-colors ${
+                selectedLesson === 'all'
+                  ? 'bg-[#2D2A26] text-white'
+                  : 'bg-[#FAF4EB] text-[#625D56] hover:bg-[#F0EAE1]'
+              }`}
             >
-              <X className="w-3.5 h-3.5" />
+              全部
             </button>
-          )}
-        </div>
-
-        <div className="flex items-center gap-1 w-full sm:w-auto shrink-0 border-t sm:border-t-0 sm:border-l border-[#F0EBE3] pt-2 sm:pt-0 sm:pl-3">
-          <span className="text-xs text-[#78716C] whitespace-nowrap">等級：</span>
-          {['all', 'N5', 'N4', 'N3', '日常'].map(lvl => (
-            <button
-              key={lvl}
-              onClick={() => setSelectedLevel(lvl)}
-              className={`px-2 py-1 text-xs rounded-md transition-colors ${selectedLevel === lvl
-                ? 'bg-[#2D2A26] text-white font-bold'
-                : 'text-[#625D56] hover:bg-[#FAF4EB]'
+            {allLessons.map(l => (
+              <button
+                key={l}
+                onClick={() => setSelectedLesson(l)}
+                className={`px-2.5 py-1 text-xs rounded-md font-bold transition-colors ${
+                  selectedLesson === l
+                    ? 'bg-[#2D2A26] text-white'
+                    : 'bg-[#FAF4EB] text-[#625D56] hover:bg-[#F0EAE1]'
                 }`}
-            >
-              {lvl === 'all' ? '全部' : lvl}
-            </button>
-          ))}
-        </div>
+              >
+                第 {l} 課
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Vocabulary Card Grid */}
-      {filteredList.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-          {filteredList.map((item) => (
-            <div
-              key={item.id}
-              className="bg-white border border-[#E8E2D9] rounded-2xl p-4 shadow-xs hover:border-[#8C6D53] hover:shadow-sm transition-all flex flex-col justify-between group"
-            >
-              <div>
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <span className="text-xs font-semibold text-[#8C6D53]">
-                      【{item.reading}】
-                    </span>
-                    <h3 className="text-xl font-bold text-[#2D2A26] tracking-tight">
-                      {item.word}
-                    </h3>
-                  </div>
+      {/* Search Input Bar */}
+      <div className="bg-white border border-[#E8E2D9] rounded-2xl p-3 flex items-center gap-3 shadow-xs">
+        <Search className="w-4 h-4 text-[#A8A29E] shrink-0" />
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="搜尋單字、假名讀音、中文釋義..."
+          className="w-full text-xs sm:text-sm bg-transparent outline-hidden text-[#2D2A26]"
+        />
+        {searchTerm && (
+          <button
+            onClick={() => setSearchTerm('')}
+            className="text-xs text-[#A8A29E] hover:text-[#2D2A26]"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
 
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => playJapaneseSpeech(item.word)}
-                      className="p-1.5 text-[#8C6D53] hover:bg-[#FAF4EB] rounded-lg transition-colors"
-                      title="發音"
-                    >
-                      <Volume2 className="w-4 h-4" />
-                    </button>
-                    {item.level && (
-                      <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-sm bg-[#FAF4EB] text-[#8C6D53] border border-[#E8E2D9]">
-                        {item.level}
-                      </span>
+      {/* 1. TEXTBOOK VOCABULARY VIEW */}
+      {sourceType === 'textbook' && (
+        <>
+          {filteredTextbookList.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+              {filteredTextbookList.map((item) => (
+                <div
+                  key={item.id}
+                  className="bg-white border border-[#E8E2D9] rounded-2xl p-4 shadow-xs hover:border-[#8C6D53] hover:shadow-sm transition-all flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="text-xs font-semibold text-[#8C6D53]">
+                          【{item.reading}】
+                        </span>
+                        <h3 className="text-xl font-bold text-[#2D2A26] tracking-tight">
+                          {item.word}
+                        </h3>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => playJapaneseSpeech(item.word)}
+                          className="p-1.5 text-[#8C6D53] hover:bg-[#FAF4EB] rounded-lg transition-colors"
+                          title="發音"
+                        >
+                          <Volume2 className="w-4 h-4" />
+                        </button>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-sm bg-[#FAF4EB] text-[#8C6D53] border border-[#E8E2D9]">
+                          第 {item.lesson} 課
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mt-2 text-sm font-semibold text-[#4A453E]">
+                      {item.meaning}
+                      {item.partOfSpeech && (
+                        <span className="ml-1.5 text-xs text-[#78716C] font-normal">
+                          · {item.partOfSpeech}
+                        </span>
+                      )}
+                    </div>
+
+                    {item.exampleSentence && (
+                      <div className="mt-2.5 text-xs text-[#78716C] bg-[#FAF7F2] p-2.5 rounded-lg border border-[#F0EBE3] leading-relaxed">
+                        <div>{item.exampleSentence}</div>
+                        {item.exampleMeaning && (
+                          <div className="text-[#A8A29E] mt-0.5">{item.exampleMeaning}</div>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
-
-                <div className="mt-2 text-sm font-semibold text-[#4A453E]">
-                  {item.meaning}
-                </div>
-
-                {item.example && (
-                  <div className="mt-2 text-xs text-[#78716C] bg-[#FAF7F2] p-2 rounded-lg border border-[#F0EBE3] leading-relaxed">
-                    {item.example}
-                  </div>
-                )}
-              </div>
-
-              {/* Action Buttons */}
-              <div className="mt-4 pt-2.5 border-t border-[#F5EFE6] flex items-center justify-end gap-1.5 opacity-90 group-hover:opacity-100">
-                <button
-                  onClick={() => handleOpenEdit(item)}
-                  className="flex items-center gap-1 px-2.5 py-1 text-xs text-[#625D56] hover:text-[#2D2A26] hover:bg-[#FAF4EB] rounded-md transition-colors"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  <span>編輯</span>
-                </button>
-                <button
-                  onClick={() => {
-                    if (confirm(`確定刪除「${item.word}」嗎？`)) {
-                      onDeleteVocab(item.id);
-                    }
-                  }}
-                  className="flex items-center gap-1 px-2.5 py-1 text-xs text-[#DC2626] hover:bg-[#FEE2E2] rounded-md transition-colors"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>刪除</span>
-                </button>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
-      ) : (
-        <div className="bg-white border border-[#E8E2D9] rounded-2xl p-12 text-center flex flex-col items-center">
-          <BookOpen className="w-10 h-10 text-[#D5CBBF] mb-2" />
-          <p className="text-sm font-bold text-[#2D2A26]">找不到符合條件的單字</p>
-          <p className="text-xs text-[#78716C] mt-1">試試調整搜尋關鍵字或新增專屬單字！</p>
-        </div>
+          ) : (
+            <div className="bg-white border border-[#E8E2D9] rounded-2xl p-12 text-center flex flex-col items-center">
+              <BookOpen className="w-10 h-10 text-[#D5CBBF] mb-2" />
+              <p className="text-sm font-bold text-[#2D2A26]">
+                {textbookVocab.length === 0 ? '目前課本單字庫尚未有資料' : '找不到符合條件的課本單字'}
+              </p>
+              <p className="text-xs text-[#78716C] mt-1 mb-3">
+                {textbookVocab.length === 0
+                  ? '您可以切換至「個人自訂單字」自由建立單字卡！'
+                  : '請確認課次篩選或搜尋字串。'}
+              </p>
+              {textbookVocab.length === 0 && (
+                <button
+                  onClick={() => setSourceType('custom')}
+                  className="px-4 py-2 bg-[#2D2A26] text-white text-xs font-bold rounded-xl shadow-xs hover:bg-[#1E1C1A]"
+                >
+                  前往個人自訂單字
+                </button>
+              )}
+            </div>
+          )}
+        </>
       )}
 
-      {/* Add / Edit Modal */}
+      {/* 2. CUSTOM VOCABULARY VIEW */}
+      {sourceType === 'custom' && (
+        <>
+          {filteredCustomList.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+              {filteredCustomList.map((item) => (
+                <div
+                  key={item.id}
+                  className="bg-white border border-[#E8E2D9] rounded-2xl p-4 shadow-xs hover:border-[#8C6D53] hover:shadow-sm transition-all flex flex-col justify-between group"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="text-xs font-semibold text-[#8C6D53]">
+                          【{item.reading}】
+                        </span>
+                        <h3 className="text-xl font-bold text-[#2D2A26] tracking-tight">
+                          {item.word}
+                        </h3>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => playJapaneseSpeech(item.word)}
+                          className="p-1.5 text-[#8C6D53] hover:bg-[#FAF4EB] rounded-lg transition-colors"
+                          title="發音"
+                        >
+                          <Volume2 className="w-4 h-4" />
+                        </button>
+                        {item.level && (
+                          <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-sm bg-[#FAF4EB] text-[#8C6D53] border border-[#E8E2D9]">
+                            {item.level}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-2 text-sm font-semibold text-[#4A453E]">
+                      {item.meaning}
+                    </div>
+
+                    {item.example && (
+                      <div className="mt-2 text-xs text-[#78716C] bg-[#FAF7F2] p-2 rounded-lg border border-[#F0EBE3] leading-relaxed">
+                        {item.example}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="mt-4 pt-2.5 border-t border-[#F5EFE6] flex items-center justify-end gap-1.5 opacity-90 group-hover:opacity-100">
+                    <button
+                      onClick={() => handleOpenEdit(item)}
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs text-[#625D56] hover:text-[#2D2A26] hover:bg-[#FAF4EB] rounded-md transition-colors"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>編輯</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`確定刪除「${item.word}」嗎？`)) {
+                          onDeleteVocab(item.id);
+                        }
+                      }}
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs text-[#DC2626] hover:bg-[#FEE2E2] rounded-md transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>刪除</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white border border-[#E8E2D9] rounded-2xl p-12 text-center flex flex-col items-center">
+              <BookOpen className="w-10 h-10 text-[#D5CBBF] mb-2" />
+              <p className="text-sm font-bold text-[#2D2A26]">目前尚無自訂生詞</p>
+              <p className="text-xs text-[#78716C] mt-1">點擊右上角「新增單字」建立個人學習單字卡！</p>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Add / Edit Custom Word Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-[#2D2A26]/50 backdrop-blur-2xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl border border-[#E8E2D9] max-w-md w-full p-6 shadow-xl relative animate-fade-in">
@@ -592,7 +432,7 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
             </button>
 
             <h3 className="text-lg font-bold text-[#2D2A26] mb-4">
-              {editingItem ? '編輯單字' : '新增自訂單字'}
+              {editingItem ? '編輯自訂單字' : '新增自訂生詞'}
             </h3>
 
             <form onSubmit={handleSaveForm} className="flex flex-col gap-3.5 text-xs sm:text-sm">
@@ -605,7 +445,7 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
                   required
                   value={formWord}
                   onChange={(e) => setFormWord(e.target.value)}
-                  placeholder="例如：食べる、山羊、勉強"
+                  placeholder="例如：食べる、本、勉強"
                   className="w-full px-3 py-2 rounded-lg border border-[#D5CBBF] focus:border-[#8C6D53] outline-hidden text-[#2D2A26]"
                 />
               </div>
@@ -619,7 +459,7 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
                   required
                   value={formReading}
                   onChange={(e) => setFormReading(e.target.value)}
-                  placeholder="例如：たべる、やぎ、べんきょう"
+                  placeholder="例如：たべる、ほん、べんきょう"
                   className="w-full px-3 py-2 rounded-lg border border-[#D5CBBF] focus:border-[#8C6D53] outline-hidden text-[#2D2A26]"
                 />
               </div>
@@ -633,7 +473,7 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
                   required
                   value={formMeaning}
                   onChange={(e) => setFormMeaning(e.target.value)}
-                  placeholder="例如：吃、山羊、學習"
+                  placeholder="例如：吃、書、學習"
                   className="w-full px-3 py-2 rounded-lg border border-[#D5CBBF] focus:border-[#8C6D53] outline-hidden text-[#2D2A26]"
                 />
               </div>
@@ -649,22 +489,6 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
                   placeholder="例如：朝ご飯を食べる。（吃早餐。）"
                   className="w-full px-3 py-2 rounded-lg border border-[#D5CBBF] focus:border-[#8C6D53] outline-hidden text-[#2D2A26]"
                 />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[#4A453E] mb-1">
-                  難度等級
-                </label>
-                <select
-                  value={formLevel}
-                  onChange={(e) => setFormLevel(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-[#D5CBBF] bg-white focus:border-[#8C6D53] outline-hidden text-[#2D2A26]"
-                >
-                  <option value="N5">N5 初級</option>
-                  <option value="N4">N4 進階</option>
-                  <option value="N3">N3 中級</option>
-                  <option value="日常">日常對話</option>
-                </select>
               </div>
 
               <div className="flex items-center justify-end gap-2 mt-4 pt-2 border-t border-[#F0EBE3]">

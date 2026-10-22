@@ -29,7 +29,7 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
   const [isAnswered, setIsAnswered] = useState<boolean>(false);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [sessionCompleted, setSessionCompleted] = useState<boolean>(false);
-  const [autoPlayAudio, setAutoPlayAudio] = useState<boolean>(true);
+  const [autoPlayAudio, setAutoPlayAudio] = useState<boolean>(false);
 
   // Session Statistics
   const [sessionCorrectCount, setSessionCorrectCount] = useState<number>(0);
@@ -41,17 +41,8 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
 
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const isTouchDevice = () => {
-    if (typeof window === 'undefined') return false;
-    return (
-      window.matchMedia('(pointer: coarse)').matches ||
-      'ontouchstart' in window ||
-      navigator.maxTouchPoints > 0
-    );
-  };
-
   // Build pool and initialize session
-  const startNewSession = (shouldAutoFocus: boolean = true) => {
+  const startNewSession = () => {
     let pool: KanaItem[] = [];
 
     const getItemsFromScript = (data: KanaItem[]) => {
@@ -95,19 +86,16 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
     setMascotMessage('三色糰子準備就緒！');
 
     setTimeout(() => {
-      // 觸控裝置切換範圍不主動彈出鍵盤，電腦端則維持自動聚焦
-      if (shouldAutoFocus && !isTouchDevice()) {
-        inputRef.current?.focus();
-      }
+      inputRef.current?.focus();
       if (shuffled[0] && autoPlayAudio) {
         playJapaneseSpeech(shuffled[0].char);
       }
     }, 150);
   };
 
-  // Re-start session when scope filters change (不強制彈出鍵盤)
+  // Re-start session when scope filters change
   useEffect(() => {
-    startNewSession(false);
+    startNewSession();
   }, [selectedScript, includeSeion, includeDakuon, includeYoon]);
 
   const currentKana = queue[currentIndex];
@@ -143,7 +131,8 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
         type: 'kana',
         prompt: currentKana.char,
         expected: currentKana.romaji,
-        display: `${currentKana.script === 'hiragana' ? '平假名' : '片假名'}：${currentKana.char}`
+        display: `${currentKana.script === 'hiragana' ? '平假名' : '片假名'}：${currentKana.char}`,
+        lesson: 0
       });
     }
 
@@ -156,7 +145,7 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
       // Completed round
       setSessionCompleted(true);
       setMascotState('celebrating');
-      setMascotMessage(`本輪五十音打字特訓完成！正確率 ${( (sessionCorrectCount / queue.length) * 100).toFixed(0)}%！✨`);
+      setMascotMessage(`本輪五十音打字特訓完成！正確率 ${((sessionCorrectCount / queue.length) * 100).toFixed(0)}%！✨`);
       return;
     }
 
@@ -169,10 +158,7 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
     setMascotMessage('下一題！看準假名，直接敲鍵盤！');
 
     setTimeout(() => {
-      // 觸控裝置不主動強制彈出鍵盤，電腦端則維持自動聚焦繼續答題
-      if (!isTouchDevice()) {
-        inputRef.current?.focus();
-      }
+      inputRef.current?.focus();
       if (queue[nextIdx] && autoPlayAudio) {
         playJapaneseSpeech(queue[nextIdx].char);
       }
@@ -181,7 +167,7 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 flex flex-col gap-6">
-      
+
       {/* Scope Settings Panel */}
       <div className="bg-white border border-[#E8E2D9] rounded-2xl p-4 sm:p-5 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#F0EBE3]">
@@ -197,31 +183,28 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
           <div className="flex items-center bg-[#FAF4EB] p-1 rounded-lg border border-[#E8E2D9]">
             <button
               onClick={() => setSelectedScript('hiragana')}
-              className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${
-                selectedScript === 'hiragana'
+              className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${selectedScript === 'hiragana'
                   ? 'bg-white text-[#2D2A26] shadow-2xs'
                   : 'text-[#625D56] hover:text-[#2D2A26]'
-              }`}
+                }`}
             >
               平假名
             </button>
             <button
               onClick={() => setSelectedScript('katakana')}
-              className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${
-                selectedScript === 'katakana'
+              className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${selectedScript === 'katakana'
                   ? 'bg-white text-[#2D2A26] shadow-2xs'
                   : 'text-[#625D56] hover:text-[#2D2A26]'
-              }`}
+                }`}
             >
               片假名
             </button>
             <button
               onClick={() => setSelectedScript('both')}
-              className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${
-                selectedScript === 'both'
+              className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${selectedScript === 'both'
                   ? 'bg-white text-[#2D2A26] shadow-2xs'
                   : 'text-[#625D56] hover:text-[#2D2A26]'
-              }`}
+                }`}
             >
               平/片混合
             </button>
@@ -272,7 +255,7 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
             </label>
 
             <button
-              onClick={() => startNewSession(false)}
+              onClick={startNewSession}
               className="flex items-center gap-1 text-xs text-[#8C6D53] hover:text-[#5E4733] font-medium ml-2"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -285,7 +268,7 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
       {/* Main Interactive Stage */}
       {!sessionCompleted && currentKana ? (
         <div className="bg-white border border-[#E8E2D9] rounded-3xl p-6 sm:p-10 shadow-xs flex flex-col items-center relative overflow-hidden">
-          
+
           {/* Progress Bar & Header Metadata */}
           <div className="w-full flex items-center justify-between text-xs text-[#78716C] mb-4">
             <div className="flex items-center gap-2">
@@ -359,13 +342,12 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
                 value={userInput}
                 onChange={(e) => setUserInput(e.target.value)}
                 placeholder="請輸入羅馬拼音..."
-                className={`w-full px-4 py-3.5 text-center text-xl font-bold tracking-wider rounded-xl border-2 transition-all outline-hidden ${
-                  isAnswered
+                className={`w-full px-4 py-3.5 text-center text-xl font-bold tracking-wider rounded-xl border-2 transition-all outline-hidden ${isAnswered
                     ? isCorrect
                       ? 'bg-[#F0FDF4] border-[#22C55E] text-[#15803D]'
                       : 'bg-[#FEF2F2] border-[#EF4444] text-[#B91C1C]'
                     : 'bg-white border-[#D5CBBF] text-[#2D2A26] focus:border-[#8C6D53] focus:ring-4 focus:ring-[#8C6D53]/10'
-                }`}
+                  }`}
               />
 
               {isAnswered && (
@@ -466,7 +448,7 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
 
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-sm">
             <button
-              onClick={() => startNewSession()}
+              onClick={startNewSession}
               className="w-full py-3 bg-[#2D2A26] text-white font-bold rounded-xl shadow-xs hover:bg-[#1E1C1A] transition-all flex items-center justify-center gap-2"
             >
               <RotateCcw className="w-4 h-4" />

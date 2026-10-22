@@ -32,7 +32,7 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
   onUpdateStats,
   stats
 }) => {
-  const [filterType, setFilterType] = useState<'all' | 'kana' | 'vocab'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'vocab' | 'cloze' | 'translation' | 'kana'>('all');
 
   // Drill Mode State
   const [isDrillActive, setIsDrillActive] = useState<boolean>(false);
@@ -65,7 +65,7 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
     setDrillIsCorrect(null);
     setDrillCompleted(false);
     setMascotState('idle');
-    setMascotMsg('專心致志，輸入正確讀音！');
+    setMascotMsg('專心致志，輸入正確讀音或答案！');
     setIsDrillActive(true);
   };
 
@@ -85,13 +85,13 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
     if (correct) {
       playSuccessSound();
       setMascotState('jumping');
-      setMascotMsg(`太厲害了！你成功克服了「${currentItem.prompt}」！🍡🎉`);
-      // Auto-remove or decrease mistake
+      setMascotMsg(`太厲害了！你成功攻克了「${currentItem.prompt}」！🍡🎉`);
+      // Auto-remove mistake on mastery
       onRemoveMistake(currentItem.id);
     } else {
       playErrorSound();
       setMascotState('thinking');
-      setMascotMsg(`糰子抖一抖，答案是「${currentItem.expected.join(' / ')}」，記住它！💭`);
+      setMascotMsg(`糰子抖了抖，正確解答是「${currentItem.expected.join(' / ')}」，記住它！💭`);
     }
 
     playJapaneseSpeech(currentItem.prompt);
@@ -114,19 +114,20 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
   };
 
   // Determine user title level
-  const totalAnswered = stats.totalKanaAnswered + stats.totalVocabAnswered;
+  const total = stats.totalAnswered;
+  const accuracy = total > 0 ? Math.round((stats.totalCorrect / total) * 100) : 100;
   const userGoatTitle =
-    totalAnswered < 15
+    total < 15
       ? '軟萌生麵糰'
-      : totalAnswered < 50
-        ? '可口白糰子'
-        : totalAnswered < 150
-          ? '花見三色糰'
-          : '極品糰子宗師';
+      : total < 50
+      ? '可口白糰子'
+      : total < 150
+      ? '花見三色糰'
+      : '極品糰子宗師';
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 flex flex-col gap-6">
-
+      
       {/* Analytics & Streak Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white border border-[#E8E2D9] rounded-2xl p-4 shadow-xs">
@@ -141,21 +142,21 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
 
         <div className="bg-white border border-[#E8E2D9] rounded-2xl p-4 shadow-xs">
           <div className="flex items-center justify-between text-[#78716C] text-xs">
-            <span>歷史最高正確率</span>
+            <span>累積正確率</span>
             <Award className="w-4 h-4 text-[#D97706]" />
           </div>
           <div className="text-2xl font-black text-[#8C6D53] tabular-nums mt-1">
-            {stats.bestAccuracy > 0 ? `${stats.bestAccuracy}%` : '85%'}
+            {accuracy}%
           </div>
         </div>
 
         <div className="bg-white border border-[#E8E2D9] rounded-2xl p-4 shadow-xs">
           <div className="flex items-center justify-between text-[#78716C] text-xs">
-            <span>五十音練習總次數</span>
+            <span>累計作答題數</span>
             <Target className="w-4 h-4 text-[#0284C7]" />
           </div>
           <div className="text-2xl font-black text-[#2D2A26] tabular-nums mt-1">
-            {stats.totalKanaAnswered} <span className="text-xs font-normal text-[#78716C]">次</span>
+            {stats.totalAnswered} <span className="text-xs font-normal text-[#78716C]">題</span>
           </div>
         </div>
 
@@ -181,7 +182,7 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
             </span>
           </div>
           <p className="text-xs text-[#78716C] mt-0.5">
-            自動記錄在五十音打字與單字測驗中失誤的題目，集中精力精準攻克。
+            自動記錄在單字拼讀、句型填空、中日翻譯與五十音特訓中失誤的題目，集中精力精準攻克。
           </p>
         </div>
 
@@ -212,27 +213,46 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-[#E8E2D9] w-fit shadow-xs">
+      <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-[#E8E2D9] w-fit shadow-xs flex-wrap">
         <button
           onClick={() => setFilterType('all')}
-          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${filterType === 'all' ? 'bg-[#2D2A26] text-white' : 'text-[#625D56] hover:bg-[#FAF4EB]'
-            }`}
+          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+            filterType === 'all' ? 'bg-[#2D2A26] text-white' : 'text-[#625D56] hover:bg-[#FAF4EB]'
+          }`}
         >
           全部 ({mistakes.length})
         </button>
         <button
-          onClick={() => setFilterType('kana')}
-          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${filterType === 'kana' ? 'bg-[#2D2A26] text-white' : 'text-[#625D56] hover:bg-[#FAF4EB]'
-            }`}
+          onClick={() => setFilterType('vocab')}
+          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+            filterType === 'vocab' ? 'bg-[#2D2A26] text-white' : 'text-[#625D56] hover:bg-[#FAF4EB]'
+          }`}
         >
-          五十音錯題 ({mistakes.filter(m => m.type === 'kana').length})
+          單字 ({mistakes.filter(m => m.type === 'vocab').length})
         </button>
         <button
-          onClick={() => setFilterType('vocab')}
-          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${filterType === 'vocab' ? 'bg-[#2D2A26] text-white' : 'text-[#625D56] hover:bg-[#FAF4EB]'
-            }`}
+          onClick={() => setFilterType('cloze')}
+          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+            filterType === 'cloze' ? 'bg-[#2D2A26] text-white' : 'text-[#625D56] hover:bg-[#FAF4EB]'
+          }`}
         >
-          單字錯題 ({mistakes.filter(m => m.type === 'vocab').length})
+          句型填空 ({mistakes.filter(m => m.type === 'cloze').length})
+        </button>
+        <button
+          onClick={() => setFilterType('translation')}
+          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+            filterType === 'translation' ? 'bg-[#2D2A26] text-white' : 'text-[#625D56] hover:bg-[#FAF4EB]'
+          }`}
+        >
+          翻譯 ({mistakes.filter(m => m.type === 'translation').length})
+        </button>
+        <button
+          onClick={() => setFilterType('kana')}
+          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+            filterType === 'kana' ? 'bg-[#2D2A26] text-white' : 'text-[#625D56] hover:bg-[#FAF4EB]'
+          }`}
+        >
+          五十音 ({mistakes.filter(m => m.type === 'kana').length})
         </button>
       </div>
 
@@ -353,12 +373,13 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
                     value={drillInput}
                     onChange={(e) => setDrillInput(e.target.value)}
                     placeholder="請輸入正確拼音或讀音..."
-                    className={`w-full px-4 py-3 text-center text-lg font-bold rounded-xl border-2 outline-hidden ${drillAnswered
+                    className={`w-full px-4 py-3 text-center text-lg font-bold rounded-xl border-2 outline-hidden ${
+                      drillAnswered
                         ? drillIsCorrect
                           ? 'bg-[#F0FDF4] border-[#22C55E] text-[#15803D]'
                           : 'bg-[#FEF2F2] border-[#EF4444] text-[#B91C1C]'
                         : 'bg-white border-[#D5CBBF] text-[#2D2A26] focus:border-[#8C6D53]'
-                      }`}
+                    }`}
                   />
 
                   {drillAnswered && (

@@ -41,11 +41,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     const client = getSupabaseClient();
     if (!client) {
+      // Local profile login
+      const mockUser: unknown = {
+        id: 'user_' + Date.now(),
+        email: email.trim(),
+        app_metadata: {},
+        user_metadata: { name: email.split('@')[0] },
+        aud: 'authenticated',
+        created_at: new Date().toISOString()
+      };
+      onUserChange(mockUser as User);
       setStatusMsg({
-        type: 'error',
-        text: '尚未設定 Supabase 連線資訊！請於專案的 .env.local 設定 VITE_SUPABASE_URL 與 VITE_SUPABASE_ANON_KEY。'
+        type: 'success',
+        text: '登入成功！已啟動學習記錄。'
       });
       setLoading(false);
+      setTimeout(() => {
+        onClose();
+      }, 1000);
       return;
     }
 
@@ -57,17 +70,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         });
         if (error) throw error;
         if (data.user) {
-          if (data.session) {
-            onUserChange(data.user);
-            setStatusMsg({ type: 'success', text: '註冊成功！已自動登入並建立個人雲端記錄！' });
-            onRefreshData();
-            setTimeout(() => onClose(), 1200);
-          } else {
-            setStatusMsg({
-              type: 'success',
-              text: '註冊成功！若有啟用信箱驗證，請至信箱收取驗證信後登入；或於 Supabase 後台關閉「Confirm email」即可直接登入。'
-            });
-          }
+          onUserChange(data.user);
+          setStatusMsg({ type: 'success', text: '註冊成功！已自動登入！' });
+          onRefreshData();
+          setTimeout(() => onClose(), 1200);
         }
       } else {
         const { data, error } = await client.auth.signInWithPassword({
@@ -77,7 +83,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         if (error) throw error;
         if (data.user) {
           onUserChange(data.user);
-          setStatusMsg({ type: 'success', text: '登入成功！正同步雲端單字與錯題本...' });
+          setStatusMsg({ type: 'success', text: '登入成功！' });
           onRefreshData();
           setTimeout(() => onClose(), 1200);
         }
@@ -107,7 +113,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 text-[#78716C] hover:text-[#2D2A26] rounded-full hover:bg-[#FAF4EB] transition-colors"
+          className="absolute top-4 right-4 p-2 text-[#78716C] hover:text-[#2D2A26] rounded-full hover:bg-[#FAF4EB]"
         >
           <X className="w-5 h-5" />
         </button>
@@ -117,14 +123,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <Mascot
             state="idle"
             size="sm"
-            message={user ? `歡迎回來，${user.email?.split('@')[0]}！` : '登入後可同步單字庫與學習進度！'}
+            message={user ? `歡迎回來，${user.email?.split('@')[0]}！` : '登入後可記錄學習進度與生詞！'}
             showBubble={true}
           />
           <h2 className="text-xl font-black text-[#2D2A26] mt-3">
-            {user ? '會員中心 & 雲端同步' : 'DangoGo 會員登入'}
+            {user ? '會員中心' : 'DangoGo 學習者登入'}
           </h2>
           <p className="text-xs text-[#78716C] mt-0.5">
-            雲端同步單字庫、錯題本與練習統計
+            日語五十音盲打與單字記錄
           </p>
         </div>
 
@@ -153,7 +159,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <div className="flex items-center justify-between text-[#78716C] mb-1">
                 <span>目前登入帳號</span>
                 <span className="font-semibold text-[#16A34A] flex items-center gap-1">
-                  <CheckCircle className="w-3.5 h-3.5" /> 雲端已連線
+                  <CheckCircle className="w-3.5 h-3.5" /> 已登入
                 </span>
               </div>
               <div className="text-sm font-bold text-[#2D2A26] truncate">
@@ -171,7 +177,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </div>
         ) : (
           <div>
-            {/* Mode Segmented Controls (Only Login & Signup) */}
+            {/* Mode Segmented Controls */}
             <div className="flex items-center bg-[#FAF4EB] p-1 rounded-xl border border-[#E8E2D9] mb-4 text-xs font-bold">
               <button
                 type="button"
@@ -240,13 +246,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 ) : mode === 'login' ? (
                   <span>立即登入</span>
                 ) : (
-                  <span>註冊帳號並同步</span>
+                  <span>註冊帳號</span>
                 )}
               </button>
-
-              <div className="text-[11px] text-center text-[#78716C] mt-2">
-                <span>登入後所有單字、錯題本與學習歷程將直接即時同步至雲端資料庫。</span>
-              </div>
             </form>
           </div>
         )}

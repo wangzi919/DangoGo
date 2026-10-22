@@ -1,12 +1,27 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { User } from '@supabase/supabase-js';
-import { ActiveTab, VocabItem, MistakeItem, UserStats } from './types';
-import { DEFAULT_VOCABULARY } from './data/defaultVocab';
+import {
+  ActiveTab,
+  TextbookVocabItem,
+  SentenceClozeItem,
+  TranslationExerciseItem,
+  VocabItem,
+  MistakeItem,
+  UserStats
+} from './types';
+import {
+  DEFAULT_TEXTBOOK_VOCAB,
+  DEFAULT_CLOZE_EXERCISES,
+  DEFAULT_TRANSLATION_EXERCISES
+} from './data/defaultTextbookData';
 import {
   getSupabaseClient,
-  fetchUserVocab,
-  saveUserVocab,
-  deleteUserVocab,
+  fetchTextbookVocab,
+  fetchClozeExercises,
+  fetchTranslationExercises,
+  fetchUserCustomVocab,
+  saveUserCustomVocab,
+  deleteUserCustomVocab,
   fetchUserMistakes,
   saveUserMistakes,
   deleteUserMistake,
@@ -15,32 +30,38 @@ import {
 } from './lib/supabase';
 
 import { Navbar } from './components/Navbar';
-import { KanaPractice } from './components/KanaPractice';
+import { PracticeHub } from './components/PracticeHub';
 import { VocabManager } from './components/VocabManager';
 import { MistakesReview } from './components/MistakesReview';
-import { GrammarPreview } from './components/GrammarPreview';
-
+import { ProfileView } from './components/ProfileView';
 import { AuthModal } from './components/AuthModal';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('kana');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('practice');
   const [user, setUser] = useState<User | null>(null);
-  const [vocabList, setVocabList] = useState<VocabItem[]>(DEFAULT_VOCABULARY);
+
+  // Textbook Data (Fetched from Supabase `textbook_vocab`, `sentence_cloze_exercises`, `translation_exercises`, fallback to defaults)
+  const [textbookVocab, setTextbookVocab] = useState<TextbookVocabItem[]>(DEFAULT_TEXTBOOK_VOCAB);
+  const [clozeExercises, setClozeExercises] = useState<SentenceClozeItem[]>(DEFAULT_CLOZE_EXERCISES);
+  const [translationExercises, setTranslationExercises] = useState<TranslationExerciseItem[]>(DEFAULT_TRANSLATION_EXERCISES);
+
+  // User Custom Vocab (Supabase `user_vocabularies`)
+  const [customVocab, setCustomVocab] = useState<VocabItem[]>([]);
+
+  // User Mistakes (Supabase `user_mistakes`)
   const [mistakes, setMistakes] = useState<MistakeItem[]>([]);
+
+  // User Stats (Supabase `user_stats`)
   const [stats, setStats] = useState<UserStats>({
     streak: 1,
     lastActiveDate: new Date().toISOString().split('T')[0],
-    totalKanaAnswered: 0,
-    totalKanaCorrect: 0,
-    totalVocabAnswered: 0,
-    totalVocabCorrect: 0,
-    bestAccuracy: 90
+    totalAnswered: 0,
+    totalCorrect: 0
   });
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
 
-
-  // Initialize Supabase Auth listener & initial load
+  // Initialize Supabase Auth listener
   useEffect(() => {
     const client = getSupabaseClient();
     if (client) {
@@ -60,18 +81,30 @@ export default function App() {
     }
   }, []);
 
-  // Refresh and load data when user changes
+  // Refresh and load data when user or auth changes
   const loadData = useCallback(async () => {
-    const loadedVocab = await fetchUserVocab(user, DEFAULT_VOCABULARY);
-    setVocabList(loadedVocab);
+    // 1. Fetch textbook datasets
+    const [fetchedTbVocab, fetchedCloze, fetchedTrans] = await Promise.all([
+      fetchTextbookVocab(DEFAULT_TEXTBOOK_VOCAB),
+      fetchClozeExercises(DEFAULT_CLOZE_EXERCISES),
+      fetchTranslationExercises(DEFAULT_TRANSLATION_EXERCISES)
+    ]);
+    setTextbookVocab(fetchedTbVocab);
+    setClozeExercises(fetchedCloze);
+    setTranslationExercises(fetchedTrans);
 
+    // 2. Fetch user custom vocab
+    const loadedCustomVocab = await fetchUserCustomVocab(user);
+    setCustomVocab(loadedCustomVocab);
+
+    // 3. Fetch user mistakes
     const loadedMistakes = await fetchUserMistakes(user);
     setMistakes(loadedMistakes);
 
+    // 4. Fetch user stats
     const loadedStats = await fetchUserStats(user);
-
-    // Calculate streak update
     const today = new Date().toISOString().split('T')[0];
+
     if (loadedStats.lastActiveDate !== today) {
       const last = new Date(loadedStats.lastActiveDate);
       const now = new Date(today);
@@ -96,42 +129,37 @@ export default function App() {
     loadData();
   }, [loadData]);
 
-  // Vocab CRUD Handlers
-  const handleAddVocab = async (item: Omit<VocabItem, 'id' | 'createdAt' | 'updatedAt'>) => {
+  // Custom Vocab CRUD Handlers
+  const handleAddCustomVocab = async (item: Omit<VocabItem, 'id' | 'createdAt' | 'updatedAt'>) => {
     const newItem: VocabItem = {
       ...item,
-      id: 'vocab_' + Date.now(),
+      id: 'custom_' + Date.now(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
-    const updated = [newItem, ...vocabList];
-    setVocabList(updated);
-    await saveUserVocab(updated, user);
+    const updated = [newItem, ...customVocab];
+    setCustomVocab(updated);
+    await saveUserCustomVocab(updated, user);
   };
 
-  const handleUpdateVocab = async (updatedItem: VocabItem) => {
-    const updated = vocabList.map(v => (v.id === updatedItem.id ? updatedItem : v));
-    setVocabList(updated);
-    await saveUserVocab(updated, user);
+  const handleUpdateCustomVocab = async (updatedItem: VocabItem) => {
+    const updated = customVocab.map(v => (v.id === updatedItem.id ? updatedItem : v));
+    setCustomVocab(updated);
+    await saveUserCustomVocab(updated, user);
   };
 
-  const handleDeleteVocab = async (id: string) => {
-    const updated = vocabList.filter(v => v.id !== id);
-    setVocabList(updated);
-    await deleteUserVocab(id, user);
-    await saveUserVocab(updated, user);
-  };
-
-  const handleResetDefaultVocab = async () => {
-    if (confirm('確定重設為預設的 12 個 N5 基礎單字嗎？')) {
-      setVocabList(DEFAULT_VOCABULARY);
-      await saveUserVocab(DEFAULT_VOCABULARY, user);
-    }
+  const handleDeleteCustomVocab = async (id: string) => {
+    const updated = customVocab.filter(v => v.id !== id);
+    setCustomVocab(updated);
+    await deleteUserCustomVocab(id, user);
+    await saveUserCustomVocab(updated, user);
   };
 
   // Mistake Management
   const handleRecordMistake = async (mistake: Omit<MistakeItem, 'id' | 'failCount' | 'lastFailedAt'>) => {
-    const existingIndex = mistakes.findIndex(m => m.prompt === mistake.prompt && m.type === mistake.type);
+    const existingIndex = mistakes.findIndex(
+      m => m.prompt === mistake.prompt && m.type === mistake.type
+    );
     let updated: MistakeItem[];
 
     if (existingIndex >= 0) {
@@ -170,35 +198,29 @@ export default function App() {
   // Stats update on answer
   const handleUpdateStats = async (isCorrect: boolean) => {
     setStats(prev => {
-      const isKana = activeTab === 'kana';
-      const kanaAnswered = isKana ? prev.totalKanaAnswered + 1 : prev.totalKanaAnswered;
-      const kanaCorrect = isKana && isCorrect ? prev.totalKanaCorrect + 1 : prev.totalKanaCorrect;
-      const vocabAnswered = !isKana ? prev.totalVocabAnswered + 1 : prev.totalVocabAnswered;
-      const vocabCorrect = !isKana && isCorrect ? prev.totalVocabCorrect + 1 : prev.totalVocabCorrect;
-
-      const totalA = kanaAnswered + vocabAnswered;
-      const totalC = kanaCorrect + vocabCorrect;
-      const accuracy = totalA > 0 ? Math.round((totalC / totalA) * 100) : 0;
-      const best = Math.max(accuracy, prev.bestAccuracy || 0);
-
       const nextStats: UserStats = {
         ...prev,
-        totalKanaAnswered: kanaAnswered,
-        totalKanaCorrect: kanaCorrect,
-        totalVocabAnswered: vocabAnswered,
-        totalVocabCorrect: vocabCorrect,
-        bestAccuracy: best
+        totalAnswered: prev.totalAnswered + 1,
+        totalCorrect: isCorrect ? prev.totalCorrect + 1 : prev.totalCorrect
       };
       saveUserStats(nextStats, user);
       return nextStats;
     });
   };
 
-
+  // Logout Handler
+  const handleLogout = async () => {
+    const client = getSupabaseClient();
+    if (client) {
+      await client.auth.signOut();
+    }
+    setUser(null);
+    loadData();
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF7F2] text-[#2D2A26] selection:bg-[#FBCFE8] selection:text-[#831843]">
-      {/* Top Bar Navigation */}
+      {/* Top Bar Navigation (4 Main Tabs: 練習, 單字庫, 錯題本, 個人中心) */}
       <Navbar
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -209,9 +231,12 @@ export default function App() {
       />
 
       {/* Main Content Viewport */}
-      <main className="flex-1 pb-24">
-        {activeTab === 'kana' && (
-          <KanaPractice
+      <main className="flex-1 pb-16">
+        {activeTab === 'practice' && (
+          <PracticeHub
+            textbookVocab={textbookVocab}
+            clozeExercises={clozeExercises}
+            translationExercises={translationExercises}
             onRecordMistake={handleRecordMistake}
             onUpdateStats={handleUpdateStats}
           />
@@ -219,13 +244,12 @@ export default function App() {
 
         {activeTab === 'vocab' && (
           <VocabManager
-            vocabList={vocabList}
-            onAddVocab={handleAddVocab}
-            onUpdateVocab={handleUpdateVocab}
-            onDeleteVocab={handleDeleteVocab}
-            onRecordMistake={handleRecordMistake}
-            onUpdateStats={handleUpdateStats}
-            onResetDefaultVocab={handleResetDefaultVocab}
+            textbookVocab={textbookVocab}
+            customVocab={customVocab}
+            onAddVocab={handleAddCustomVocab}
+            onUpdateVocab={handleUpdateCustomVocab}
+            onDeleteVocab={handleDeleteCustomVocab}
+            onStartPractice={() => setActiveTab('practice')}
           />
         )}
 
@@ -239,10 +263,16 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'grammar' && <GrammarPreview />}
+        {activeTab === 'profile' && (
+          <ProfileView
+            user={user}
+            stats={stats}
+            onOpenAuth={() => setIsAuthModalOpen(true)}
+            onLogout={handleLogout}
+            onNavigateTab={setActiveTab}
+          />
+        )}
       </main>
-
-
 
       {/* Supabase Auth & Cloud Sync Modal */}
       <AuthModal
@@ -259,11 +289,11 @@ export default function App() {
           <div className="flex items-center gap-2">
             <span className="font-black text-[#2D2A26]">DangoGo 糰子日語</span>
             <span>·</span>
-            <span>日語五十音盲打特訓與雲端單字庫</span>
+            <span>學校課本分課特訓 · 句型填空 · 翻譯 · 雲端同步</span>
           </div>
 
           <div className="text-[11px] text-[#A8A29E]">
-            五十音盲打 · 拼音容錯 · Web Speech API ja-JP · Supabase Cloud Sync
+            單字拼讀 · 句型填空 · 中日翻譯 · 五十音盲打 · Supabase PostgreSQL
           </div>
         </div>
       </footer>

@@ -134,7 +134,7 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
           lesson: vocab.lesson
         });
       }
-      playJapaneseSpeech(vocab.word);
+      playJapaneseSpeech(vocab.reading || vocab.word);
     } else if (activeMode === 'cloze') {
       const cloze = currentItem as SentenceClozeItem;
       const expectedList = cloze.correctAnswers.map(a => a.toLowerCase().trim());
@@ -195,7 +195,7 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 flex flex-col gap-6">
-      
+
       {/* Practice Header & Mode Switcher */}
       <div className="bg-white border border-[#E8E2D9] rounded-2xl p-4 sm:p-5 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#F0EBE3]">
@@ -236,11 +236,10 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-3">
           <button
             onClick={() => setActiveMode('kana')}
-            className={`flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold rounded-xl border transition-all ${
-              activeMode === 'kana'
-                ? 'bg-[#2D2A26] text-white border-[#2D2A26] shadow-xs'
-                : 'bg-white text-[#625D56] border-[#D5CBBF] hover:bg-[#FAF4EB]'
-            }`}
+            className={`flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold rounded-xl border transition-all ${activeMode === 'kana'
+              ? 'bg-[#2D2A26] text-white border-[#2D2A26] shadow-xs'
+              : 'bg-white text-[#625D56] border-[#D5CBBF] hover:bg-[#FAF4EB]'
+              }`}
           >
             <Layers className="w-3.5 h-3.5" />
             <span>五十音打字</span>
@@ -248,11 +247,10 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
 
           <button
             onClick={() => setActiveMode('vocab')}
-            className={`flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold rounded-xl border transition-all ${
-              activeMode === 'vocab'
-                ? 'bg-[#2D2A26] text-white border-[#2D2A26] shadow-xs'
-                : 'bg-white text-[#625D56] border-[#D5CBBF] hover:bg-[#FAF4EB]'
-            }`}
+            className={`flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold rounded-xl border transition-all ${activeMode === 'vocab'
+              ? 'bg-[#2D2A26] text-white border-[#2D2A26] shadow-xs'
+              : 'bg-white text-[#625D56] border-[#D5CBBF] hover:bg-[#FAF4EB]'
+              }`}
           >
             <BookOpen className="w-3.5 h-3.5" />
             <span>單字拼讀</span>
@@ -260,11 +258,10 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
 
           <button
             onClick={() => setActiveMode('cloze')}
-            className={`flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold rounded-xl border transition-all ${
-              activeMode === 'cloze'
-                ? 'bg-[#2D2A26] text-white border-[#2D2A26] shadow-xs'
-                : 'bg-white text-[#625D56] border-[#D5CBBF] hover:bg-[#FAF4EB]'
-            }`}
+            className={`flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold rounded-xl border transition-all ${activeMode === 'cloze'
+              ? 'bg-[#2D2A26] text-white border-[#2D2A26] shadow-xs'
+              : 'bg-white text-[#625D56] border-[#D5CBBF] hover:bg-[#FAF4EB]'
+              }`}
           >
             <PenTool className="w-3.5 h-3.5" />
             <span>句型填空</span>
@@ -272,11 +269,10 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
 
           <button
             onClick={() => setActiveMode('translation')}
-            className={`flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold rounded-xl border transition-all ${
-              activeMode === 'translation'
-                ? 'bg-[#2D2A26] text-white border-[#2D2A26] shadow-xs'
-                : 'bg-white text-[#625D56] border-[#D5CBBF] hover:bg-[#FAF4EB]'
-            }`}
+            className={`flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold rounded-xl border transition-all ${activeMode === 'translation'
+              ? 'bg-[#2D2A26] text-white border-[#2D2A26] shadow-xs'
+              : 'bg-white text-[#625D56] border-[#D5CBBF] hover:bg-[#FAF4EB]'
+              }`}
           >
             <Languages className="w-3.5 h-3.5" />
             <span>中日翻譯</span>
@@ -295,7 +291,7 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
       {/* Modes 1, 2, 3: Vocab, Cloze, Translation */}
       {activeMode !== 'kana' && (
         <div className="bg-white border border-[#E8E2D9] rounded-2xl p-5 sm:p-7 shadow-xs flex flex-col">
-          
+
           {/* Header Progress Strip */}
           <div className="flex items-center justify-between text-xs text-[#78716C] mb-3 pb-2 border-b border-[#F0EBE3]">
             <span className="font-bold text-[#2D2A26]">
@@ -333,10 +329,10 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
             </div>
           ) : !quizCompleted && currentItem ? (
             <div className="w-full flex flex-col items-center">
-              
+
               {/* Question Display Area */}
               <div className="my-3 text-center w-full max-w-lg">
-                
+
                 {/* 1. VOCAB QUIZ */}
                 {activeMode === 'vocab' && (
                   <div>
@@ -350,7 +346,7 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
                       <span>漢字：{(currentItem as TextbookVocabItem).word}</span>
                       <button
                         type="button"
-                        onClick={() => playJapaneseSpeech((currentItem as TextbookVocabItem).word)}
+                        onClick={() => playJapaneseSpeech((currentItem as TextbookVocabItem).reading || (currentItem as TextbookVocabItem).word)}
                         className="p-1 rounded-full text-[#8C6D53] hover:bg-[#FAF4EB]"
                         title="朗讀"
                       >
@@ -416,17 +412,16 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
 
               {/* Input Form with Virtual Keyboard Integration */}
               <form onSubmit={handleVerify} className="w-full max-w-md flex flex-col gap-2.5 mt-2">
-                
+
                 {/* Virtual Keyboard Toggle for mobile / IME-less users */}
                 <div className="w-full flex items-center justify-between text-xs px-0.5">
                   <button
                     type="button"
                     onClick={() => setIsKeyboardOpen(!isKeyboardOpen)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all border ${
-                      isKeyboardOpen
-                        ? 'bg-[#2D2A26] text-white border-[#2D2A26]'
-                        : 'bg-[#FAF4EB] text-[#8C6D53] border-[#D5CBBF] hover:bg-[#F2EAE0]'
-                    }`}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all border ${isKeyboardOpen
+                      ? 'bg-[#2D2A26] text-white border-[#2D2A26]'
+                      : 'bg-[#FAF4EB] text-[#8C6D53] border-[#D5CBBF] hover:bg-[#F2EAE0]'
+                      }`}
                   >
                     <Keyboard className="w-3.5 h-3.5" />
                     <span>{isKeyboardOpen ? '收起虛擬鍵盤' : '使用日文虛擬鍵盤'}</span>
@@ -450,18 +445,17 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
                       isKeyboardOpen
                         ? '點擊下方虛擬鍵盤輸入...'
                         : activeMode === 'vocab'
-                        ? '輸入假名讀音 (如：たべる)...'
-                        : activeMode === 'cloze'
-                        ? '輸入挖空處答案 (如：は)...'
-                        : '輸入日文翻譯句子...'
+                          ? '輸入假名讀音 (如：たべる)...'
+                          : activeMode === 'cloze'
+                            ? '輸入挖空處答案 (如：は)...'
+                            : '輸入日文翻譯句子...'
                     }
-                    className={`w-full px-4 py-3 text-center text-lg font-bold rounded-xl border-2 transition-all outline-hidden ${
-                      quizAnswered
-                        ? quizIsCorrect
-                          ? 'bg-[#F0FDF4] border-[#22C55E] text-[#15803D]'
-                          : 'bg-[#FEF2F2] border-[#EF4444] text-[#B91C1C]'
-                        : 'bg-white border-[#D5CBBF] text-[#2D2A26] focus:border-[#8C6D53]'
-                    }`}
+                    className={`w-full px-4 py-3 text-center text-lg font-bold rounded-xl border-2 transition-all outline-hidden ${quizAnswered
+                      ? quizIsCorrect
+                        ? 'bg-[#F0FDF4] border-[#22C55E] text-[#15803D]'
+                        : 'bg-[#FEF2F2] border-[#EF4444] text-[#B91C1C]'
+                      : 'bg-white border-[#D5CBBF] text-[#2D2A26] focus:border-[#8C6D53]'
+                      }`}
                   />
 
                   {quizAnswered && (
@@ -478,11 +472,10 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
                 {/* Verification result & explanations */}
                 {quizAnswered && (
                   <div
-                    className={`p-3 rounded-xl text-center text-xs sm:text-sm font-bold border ${
-                      quizIsCorrect
-                        ? 'bg-[#F0FDF4] border-[#BBF7D0] text-[#15803D]'
-                        : 'bg-[#FEF2F2] border-[#FECACA] text-[#B91C1C]'
-                    }`}
+                    className={`p-3 rounded-xl text-center text-xs sm:text-sm font-bold border ${quizIsCorrect
+                      ? 'bg-[#F0FDF4] border-[#BBF7D0] text-[#15803D]'
+                      : 'bg-[#FEF2F2] border-[#FECACA] text-[#B91C1C]'
+                      }`}
                   >
                     {quizIsCorrect ? (
                       <div>

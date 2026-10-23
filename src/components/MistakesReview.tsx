@@ -85,13 +85,13 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
     if (correct) {
       playSuccessSound();
       setMascotState('jumping');
-      setMascotMsg(`太厲害了！你成功攻克了「${currentItem.prompt}」！🍡🎉`);
+      setMascotMsg(`太厲害了！你成功攻克了「${currentItem.prompt}」！`);
       // Auto-remove mistake on mastery
       onRemoveMistake(currentItem.id);
     } else {
       playErrorSound();
       setMascotState('thinking');
-      setMascotMsg(`糰子抖了抖，正確解答是「${currentItem.expected.join(' / ')}」，記住它！💭`);
+      setMascotMsg(`糰子抖了抖，正確解答是「${currentItem.expected.join(' / ')}」，記住它！`);
     }
 
     playJapaneseSpeech(currentItem.prompt);
@@ -101,7 +101,7 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
     if (drillIndex + 1 >= drillQueue.length) {
       setDrillCompleted(true);
       setMascotState('celebrating');
-      setMascotMsg('所有的錯題都特訓完成了！三色糰子為你驕傲！🍡✨');
+      setMascotMsg('所有的錯題都特訓完成了！三色糰子為你驕傲！');
       return;
     }
     const next = drillIndex + 1;
@@ -347,7 +347,7 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
 
                 <Mascot
                   state={mascotState}
-                  size="sm"
+                  size="md"
                   message={mascotMsg}
                   showBubble={true}
                   customImage={mascotReadImg}

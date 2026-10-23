@@ -133,7 +133,7 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 flex flex-col gap-6">
-      
+
       {/* Header & Controls Strip */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -182,26 +182,24 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
 
       {/* Source Switcher: 課本單字 vs 個人自訂單字 */}
       <div className="flex items-center justify-between flex-wrap gap-3 bg-white border border-[#E8E2D9] rounded-2xl p-3 shadow-xs">
-        
+
         {/* Source Segmented Control */}
         <div className="flex items-center bg-[#FAF4EB] p-1 rounded-xl border border-[#E8E2D9]">
           <button
             onClick={() => setSourceType('textbook')}
-            className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-colors ${
-              sourceType === 'textbook'
+            className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-colors ${sourceType === 'textbook'
                 ? 'bg-white text-[#2D2A26] shadow-2xs'
                 : 'text-[#625D56] hover:text-[#2D2A26]'
-            }`}
+              }`}
           >
             課本分課單字 ({textbookVocab.length})
           </button>
           <button
             onClick={() => setSourceType('custom')}
-            className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-colors ${
-              sourceType === 'custom'
+            className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-colors ${sourceType === 'custom'
                 ? 'bg-white text-[#2D2A26] shadow-2xs'
                 : 'text-[#625D56] hover:text-[#2D2A26]'
-            }`}
+              }`}
           >
             個人自訂生詞 ({customVocab.length})
           </button>
@@ -213,11 +211,10 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
             <span className="text-xs text-[#78716C] font-semibold whitespace-nowrap">課次：</span>
             <button
               onClick={() => setSelectedLesson('all')}
-              className={`px-2.5 py-1 text-xs rounded-md font-bold transition-colors ${
-                selectedLesson === 'all'
+              className={`px-2.5 py-1 text-xs rounded-md font-bold transition-colors ${selectedLesson === 'all'
                   ? 'bg-[#2D2A26] text-white'
                   : 'bg-[#FAF4EB] text-[#625D56] hover:bg-[#F0EAE1]'
-              }`}
+                }`}
             >
               全部
             </button>
@@ -225,11 +222,10 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
               <button
                 key={l}
                 onClick={() => setSelectedLesson(l)}
-                className={`px-2.5 py-1 text-xs rounded-md font-bold transition-colors ${
-                  selectedLesson === l
+                className={`px-2.5 py-1 text-xs rounded-md font-bold transition-colors ${selectedLesson === l
                     ? 'bg-[#2D2A26] text-white'
                     : 'bg-[#FAF4EB] text-[#625D56] hover:bg-[#F0EAE1]'
-                }`}
+                  }`}
               >
                 第 {l} 課
               </button>
@@ -281,7 +277,7 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
 
                       <div className="flex items-center gap-1">
                         <button
-                          onClick={() => playJapaneseSpeech(item.word)}
+                          onClick={() => playJapaneseSpeech(item.reading || item.word)}
                           className="p-1.5 text-[#8C6D53] hover:bg-[#FAF4EB] rounded-lg transition-colors"
                           title="發音"
                         >
@@ -361,7 +357,7 @@ export const VocabManager: React.FC<VocabManagerProps> = ({
 
                       <div className="flex items-center gap-1">
                         <button
-                          onClick={() => playJapaneseSpeech(item.word)}
+                          onClick={() => playJapaneseSpeech(item.reading || item.word)}
                           className="p-1.5 text-[#8C6D53] hover:bg-[#FAF4EB] rounded-lg transition-colors"
                           title="發音"
                         >

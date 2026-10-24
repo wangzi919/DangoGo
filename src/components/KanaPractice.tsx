@@ -1,11 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { KanaItem, KanaScript, KanaGroup, MistakeItem } from '../types';
+import { KanaItem, MistakeItem } from '../types';
 import { HIRAGANA_DATA, KATAKANA_DATA, isKanaAnswerCorrect } from '../data/kanaData';
 import { playJapaneseSpeech, playSuccessSound, playErrorSound } from '../lib/speech';
 import { Mascot } from './Mascot';
 import mascotCheerImg from '../assets/images/mascot_cheer.png';
 import mascotUpsetImg from '../assets/images/mascot_upset.png';
-import { Volume2, RotateCcw, CheckCircle2, XCircle, ArrowRight, Sparkles, Filter } from 'lucide-react';
+import {
+  Volume2,
+  RotateCcw,
+  CheckCircle2,
+  XCircle,
+  ArrowRight,
+  Filter,
+  Keyboard,
+  Ear,
+  Eraser,
+  RotateCw,
+  Sparkles
+} from 'lucide-react';
+
+export type KanaPracticeMode = 'typing' | 'audioRecall';
 
 interface KanaPracticeProps {
   onRecordMistake: (mistake: Omit<MistakeItem, 'id' | 'failCount' | 'lastFailedAt'>) => void;
@@ -17,6 +31,9 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
   onRecordMistake,
   onUpdateStats
 }) => {
+  // Practice Sub-Mode: 'typing' (看字打音) vs 'audioRecall' (聽音默寫/翻面卡牌)
+  const [practiceMode, setPracticeMode] = useState<KanaPracticeMode>('typing');
+
   // Scope Settings
   const [selectedScript, setSelectedScript] = useState<'hiragana' | 'katakana' | 'both'>('hiragana');
   const [includeSeion, setIncludeSeion] = useState<boolean>(true);
@@ -26,11 +43,17 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
   // Practice Session State
   const [queue, setQueue] = useState<KanaItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
+  const [sessionCompleted, setSessionCompleted] = useState<boolean>(false);
+  const [autoPlayAudio, setAutoPlayAudio] = useState<boolean>(false);
+  const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
+
+  // Typing Mode Specific State
   const [userInput, setUserInput] = useState<string>('');
   const [isAnswered, setIsAnswered] = useState<boolean>(false);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
-  const [sessionCompleted, setSessionCompleted] = useState<boolean>(false);
-  const [autoPlayAudio, setAutoPlayAudio] = useState<boolean>(false);
+
+  // Audio Recall (Flip Card) Specific State
+  const [isFlipped, setIsFlipped] = useState<boolean>(false);
 
   // Session Statistics
   const [sessionCorrectCount, setSessionCorrectCount] = useState<number>(0);
@@ -40,7 +63,11 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
   const [mascotState, setMascotState] = useState<'idle' | 'jumping' | 'thinking' | 'celebrating'>('idle');
   const [mascotMessage, setMascotMessage] = useState<string>('輸入對應的羅馬拼音，按下 Enter 送出！');
 
+  // Refs
   const inputRef = useRef<HTMLInputElement>(null);
+  const nextButtonRef = useRef<HTMLButtonElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const isDrawingRef = useRef<boolean>(false);
 
   const isMobileOrTouchDevice = () => {
     if (typeof window === 'undefined') return false;
@@ -52,8 +79,136 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
     );
   };
 
+  // Canvas Stroke Grid and Drawing Logic
+  const drawGuideGrid = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+    ctx.save();
+    ctx.clearRect(0, 0, width, height);
+
+    // Warm white calligraphy paper background
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, width, height);
+
+    // Grid outer border
+    ctx.strokeStyle = '#E8E2D9';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(0, 0, width, height);
+
+    // Dashed lines for rice/cross grid (米字格)
+    ctx.strokeStyle = '#F0EBE3';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+
+    // Horizontal center line
+    ctx.beginPath();
+    ctx.moveTo(0, height / 2);
+    ctx.lineTo(width, height / 2);
+    ctx.stroke();
+
+    // Vertical center line
+    ctx.beginPath();
+    ctx.moveTo(width / 2, 0);
+    ctx.lineTo(width / 2, height);
+    ctx.stroke();
+
+    // Diagonals
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(width, height);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(width, 0);
+    ctx.lineTo(0, height);
+    ctx.stroke();
+
+    ctx.restore();
+  };
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    drawGuideGrid(ctx, canvas.width, canvas.height);
+  };
+
+  // Initialize canvas guidelines whenever canvas mounts or changes
+  useEffect(() => {
+    if (practiceMode === 'audioRecall' && canvasRef.current) {
+      clearCanvas();
+    }
+  }, [practiceMode, currentIndex]);
+
+  const getCanvasPos = (
+    e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>,
+    canvas: HTMLCanvasElement
+  ) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    if ('touches' in e && e.touches.length > 0) {
+      return {
+        x: (e.touches[0].clientX - rect.left) * scaleX,
+        y: (e.touches[0].clientY - rect.top) * scaleY
+      };
+    } else if ('clientX' in e) {
+      return {
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY
+      };
+    }
+    return { x: 0, y: 0 };
+  };
+
+  const handleStartDraw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    isDrawingRef.current = true;
+    const pos = getCanvasPos(e, canvas);
+    ctx.beginPath();
+    ctx.moveTo(pos.x, pos.y);
+  };
+
+  const handleDraw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawingRef.current) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const pos = getCanvasPos(e, canvas);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.strokeStyle = '#2D2A26';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+  };
+
+  const handleStopDraw = () => {
+    isDrawingRef.current = false;
+  };
+
+  // Speech handler with visual feedback
+  const handleSpeech = async (overrideChar?: string) => {
+    const charToSpeak = overrideChar || queue[currentIndex]?.char;
+    if (!charToSpeak) return;
+
+    setIsPlayingAudio(true);
+    try {
+      await playJapaneseSpeech(charToSpeak);
+    } finally {
+      setIsPlayingAudio(false);
+    }
+  };
+
   // Build pool and initialize session
-  const startNewSession = (shouldAutoFocus: boolean = true) => {
+  const startNewSession = (shouldAutoFocus: boolean = true, targetMode?: KanaPracticeMode) => {
+    const currentMode = targetMode || practiceMode;
     let pool: KanaItem[] = [];
 
     const getItemsFromScript = (data: KanaItem[]) => {
@@ -90,35 +245,43 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
     setUserInput('');
     setIsAnswered(false);
     setIsCorrect(null);
+    setIsFlipped(false);
     setSessionCompleted(false);
     setSessionCorrectCount(0);
     setSessionTotalCount(shuffled.length);
     setMascotState('idle');
-    setMascotMessage('白糰子準備就緒！');
+
+    if (currentMode === 'typing') {
+      setMascotMessage('白糰子準備就緒！看準假名直接打拼音！');
+    } else {
+      setMascotMessage('聽發音並默寫，翻面自評！');
+    }
 
     setTimeout(() => {
-      if (shouldAutoFocus && !isMobileOrTouchDevice()) {
+      if (currentMode === 'typing' && shouldAutoFocus && !isMobileOrTouchDevice()) {
         inputRef.current?.focus();
       }
-      if (shuffled[0] && autoPlayAudio) {
-        playJapaneseSpeech(shuffled[0].char);
+      if (shuffled[0] && (autoPlayAudio || currentMode === 'audioRecall')) {
+        handleSpeech(shuffled[0].char);
       }
     }, 150);
   };
 
-  // Re-start session when scope filters change (不強制彈出手機鍵盤)
+  // Re-start session when scope filters change
   useEffect(() => {
     startNewSession(false);
   }, [selectedScript, includeSeion, includeDakuon, includeYoon]);
 
   const currentKana = queue[currentIndex];
 
-  const handleSpeech = () => {
-    if (currentKana) {
-      playJapaneseSpeech(currentKana.char);
-    }
+  // Mode change handler
+  const handleModeChange = (newMode: KanaPracticeMode) => {
+    if (newMode === practiceMode) return;
+    setPracticeMode(newMode);
+    startNewSession(true, newMode);
   };
 
+  // Typing Mode Verification
   const handleVerify = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!currentKana || isAnswered || !userInput.trim()) return;
@@ -153,11 +316,56 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
     playJapaneseSpeech(currentKana.char);
   };
 
-  const nextButtonRef = useRef<HTMLButtonElement>(null);
+  // Audio Recall Mode Self-Assessment
+  const handleSelfAssess = (remembered: boolean) => {
+    if (!currentKana) return;
 
-  const handleNext = () => {
+    onUpdateStats(remembered);
+
+    if (remembered) {
+      playSuccessSound();
+      setSessionCorrectCount(prev => prev + 1);
+      setMascotState('jumping');
+      setMascotMessage(`太棒了！「${currentKana.char}」熟練掌握！`);
+    } else {
+      playErrorSound();
+      setMascotState('thinking');
+      setMascotMessage(`已收錄到生詞錯題本！「${currentKana.char}」讀作 [${currentKana.romaji.join(' / ')}]，多翻幾次就記住囉！`);
+
+      onRecordMistake({
+        targetId: currentKana.id,
+        type: 'kana',
+        prompt: currentKana.char,
+        expected: currentKana.romaji,
+        display: `${currentKana.script === 'hiragana' ? '平假名' : '片假名'}：${currentKana.char} [${currentKana.romaji.join(' / ')}]`,
+        lesson: 0
+      });
+    }
+
+    // Advance to next card
     if (currentIndex + 1 >= queue.length) {
-      // Completed round
+      setSessionCompleted(true);
+      setMascotState('celebrating');
+      const finalAccuracy = (((sessionCorrectCount + (remembered ? 1 : 0)) / queue.length) * 100).toFixed(0);
+      setMascotMessage(`本輪聽音默寫完成！記憶熟練度 ${finalAccuracy}%！✨`);
+      return;
+    }
+
+    const nextIdx = currentIndex + 1;
+    setCurrentIndex(nextIdx);
+    setIsFlipped(false);
+    clearCanvas();
+
+    setTimeout(() => {
+      if (queue[nextIdx]) {
+        handleSpeech(queue[nextIdx].char);
+      }
+    }, 150);
+  };
+
+  // Next question for typing mode
+  const handleNextTyping = () => {
+    if (currentIndex + 1 >= queue.length) {
       setSessionCompleted(true);
       setMascotState('celebrating');
       setMascotMessage(`本輪五十音打字特訓完成！正確率 ${((sessionCorrectCount / queue.length) * 100).toFixed(0)}%！✨`);
@@ -177,46 +385,93 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
         inputRef.current?.focus();
       }
       if (queue[nextIdx] && autoPlayAudio) {
-        playJapaneseSpeech(queue[nextIdx].char);
+        handleSpeech(queue[nextIdx].char);
       }
     }, 100);
   };
 
-  // Handle form submit: if answered, advance to next; if not, verify
-  const handleFormSubmit = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (isAnswered) {
-      handleNext();
-    } else {
-      handleVerify();
-    }
-  };
-
-  // Focus Next button when answered
+  // Focus Next button when answered in typing mode
   useEffect(() => {
-    if (isAnswered) {
+    if (practiceMode === 'typing' && isAnswered) {
       nextButtonRef.current?.focus();
     }
-  }, [isAnswered]);
+  }, [isAnswered, practiceMode]);
 
-  // Global keydown listener for Enter / Space to advance to next question
+  // Global keydown listeners for both modes
   useEffect(() => {
-    if (!isAnswered || sessionCompleted || queue.length === 0) return;
+    if (sessionCompleted || queue.length === 0) return;
 
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (e.isComposing || e.keyCode === 229) return;
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        handleNext();
+      if (e.isComposing || (e as any).keyCode === 229) return;
+      const targetTag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+
+      // In typing mode
+      if (practiceMode === 'typing') {
+        if (targetTag === 'input' && !isAnswered) return;
+        if (isAnswered && e.key === 'Enter') {
+          e.preventDefault();
+          handleNextTyping();
+        }
+        return;
+      }
+
+      // In audioRecall mode
+      if (practiceMode === 'audioRecall') {
+        if (!isFlipped) {
+          // Front side: Enter flips to back
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            setIsFlipped(true);
+          }
+        } else {
+          // Back side: Enter records memorized and advances
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            handleSelfAssess(true);
+          }
+        }
       }
     };
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [isAnswered, sessionCompleted, queue.length, currentIndex]);
+  }, [practiceMode, isFlipped, isAnswered, sessionCompleted, queue.length, currentIndex, sessionCorrectCount]);
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 flex flex-col gap-6">
+
+      {/* Top Mode Segmented Switcher */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white border border-[#E8E2D9] rounded-2xl p-3 sm:px-5 shadow-xs">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-[#8C6D53] tracking-wide">特訓模式</span>
+        </div>
+
+        <div className="flex items-center bg-[#FAF4EB] p-1 rounded-xl border border-[#E8E2D9] w-full sm:w-auto">
+          <button
+            type="button"
+            onClick={() => handleModeChange('typing')}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${practiceMode === 'typing'
+                ? 'bg-white text-[#2D2A26] shadow-2xs'
+                : 'text-[#625D56] hover:text-[#2D2A26]'
+              }`}
+          >
+            <Keyboard className="w-4 h-4 text-[#8C6D53]" />
+            <span>看字打音</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleModeChange('audioRecall')}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${practiceMode === 'audioRecall'
+                ? 'bg-white text-[#2D2A26] shadow-2xs'
+                : 'text-[#625D56] hover:text-[#2D2A26]'
+              }`}
+          >
+            <Ear className="w-4 h-4 text-[#8C6D53]" />
+            <span>聽音默寫</span>
+          </button>
+        </div>
+      </div>
 
       {/* Scope Settings Panel */}
       <div className="bg-white border border-[#E8E2D9] rounded-2xl p-4 sm:p-5 shadow-xs">
@@ -234,8 +489,8 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
             <button
               onClick={() => setSelectedScript('hiragana')}
               className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${selectedScript === 'hiragana'
-                ? 'bg-white text-[#2D2A26] shadow-2xs'
-                : 'text-[#625D56] hover:text-[#2D2A26]'
+                  ? 'bg-white text-[#2D2A26] shadow-2xs'
+                  : 'text-[#625D56] hover:text-[#2D2A26]'
                 }`}
             >
               平假名
@@ -243,8 +498,8 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
             <button
               onClick={() => setSelectedScript('katakana')}
               className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${selectedScript === 'katakana'
-                ? 'bg-white text-[#2D2A26] shadow-2xs'
-                : 'text-[#625D56] hover:text-[#2D2A26]'
+                  ? 'bg-white text-[#2D2A26] shadow-2xs'
+                  : 'text-[#625D56] hover:text-[#2D2A26]'
                 }`}
             >
               片假名
@@ -252,8 +507,8 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
             <button
               onClick={() => setSelectedScript('both')}
               className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${selectedScript === 'both'
-                ? 'bg-white text-[#2D2A26] shadow-2xs'
-                : 'text-[#625D56] hover:text-[#2D2A26]'
+                  ? 'bg-white text-[#2D2A26] shadow-2xs'
+                  : 'text-[#625D56] hover:text-[#2D2A26]'
                 }`}
             >
               平/片混合
@@ -293,20 +548,22 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
             <span className="font-medium">拗音 (33音)</span>
           </label>
 
-          <div className="ml-auto flex items-center gap-2">
-            <label className="flex items-center gap-1.5 cursor-pointer text-xs text-[#78716C] select-none">
-              <input
-                type="checkbox"
-                checked={autoPlayAudio}
-                onChange={(e) => setAutoPlayAudio(e.target.checked)}
-                className="w-3.5 h-3.5 accent-[#8C6D53]"
-              />
-              <span>自動語音朗讀</span>
-            </label>
+          <div className="ml-auto flex items-center gap-3">
+            {practiceMode === 'typing' && (
+              <label className="flex items-center gap-1.5 cursor-pointer text-xs text-[#78716C] select-none">
+                <input
+                  type="checkbox"
+                  checked={autoPlayAudio}
+                  onChange={(e) => setAutoPlayAudio(e.target.checked)}
+                  className="w-3.5 h-3.5 accent-[#8C6D53]"
+                />
+                <span>自動語音朗讀</span>
+              </label>
+            )}
 
             <button
               onClick={() => startNewSession(false)}
-              className="flex items-center gap-1 text-xs text-[#8C6D53] hover:text-[#5E4733] font-medium ml-2"
+              className="flex items-center gap-1 text-xs text-[#8C6D53] hover:text-[#5E4733] font-medium cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>重新洗牌</span>
@@ -317,13 +574,18 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
 
       {/* Main Interactive Stage */}
       {!sessionCompleted && currentKana ? (
-        <div className="bg-white border border-[#E8E2D9] rounded-3xl p-4 sm:p-10 shadow-xs flex flex-col items-center relative overflow-hidden">
+        <div className="bg-white border border-[#E8E2D9] rounded-3xl p-4 sm:p-8 shadow-xs flex flex-col items-center relative overflow-hidden">
 
           {/* Progress Bar & Header Metadata */}
           <div className="w-full flex items-center justify-between text-xs text-[#78716C] mb-4">
-            <span className="font-bold text-[#2D2A26] bg-[#F5EFE6] px-2.5 py-1 rounded-md">
-              第 {currentIndex + 1} / {queue.length} 題
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-[#2D2A26] bg-[#F5EFE6] px-2.5 py-1 rounded-md">
+                第 {currentIndex + 1} / {queue.length} 題
+              </span>
+              <span className="text-[#8C6D53] font-medium hidden sm:inline">
+                {practiceMode === 'typing' ? '· 看字打音' : '· 聽音默寫'}
+              </span>
+            </div>
 
             <div className="font-mono tabular-nums text-xs font-semibold text-[#8C6D53]">
               正確率: {currentIndex > 0 ? ((sessionCorrectCount / currentIndex) * 100).toFixed(0) : 100}%
@@ -350,114 +612,300 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
             />
           </div>
 
-          {/* Big Kana Card */}
-          <div className="relative flex flex-col items-center justify-center my-4 group">
-            <div
-              onClick={handleSpeech}
-              title="點擊聽標準發音 (ja-JP)"
-              className="w-36 h-36 sm:w-44 sm:h-44 rounded-3xl bg-[#FAF7F2] border-2 border-[#E8E2D9] flex items-center justify-center cursor-pointer shadow-xs hover:border-[#8C6D53] transition-all group-hover:scale-102"
-            >
-              <span className="text-6xl sm:text-7xl font-bold font-serif text-[#2D2A26] select-none">
-                {currentKana.char}
-              </span>
+          {/* ============================================================ */}
+          {/* MODE 1: 看字打音 (TYPING MODE)                                */}
+          {/* ============================================================ */}
+          {practiceMode === 'typing' && (
+            <div className="w-full flex flex-col items-center">
+              {/* Big Kana Card */}
+              <div className="relative flex flex-col items-center justify-center my-4 group">
+                <div
+                  onClick={() => handleSpeech()}
+                  title="點擊聽標準發音 (ja-JP)"
+                  className="w-36 h-36 sm:w-44 sm:h-44 rounded-3xl bg-[#FAF7F2] border-2 border-[#E8E2D9] flex items-center justify-center cursor-pointer shadow-xs hover:border-[#8C6D53] transition-all group-hover:scale-102"
+                >
+                  <span className="text-6xl sm:text-7xl font-bold font-serif text-[#2D2A26] select-none">
+                    {currentKana.char}
+                  </span>
 
-              <button
-                type="button"
-                className="absolute bottom-3 right-3 p-2 bg-white rounded-full border border-[#D5CBBF] shadow-2xs hover:bg-[#FAF4EB] text-[#8C6D53]"
-                title="發音"
-              >
-                <Volume2 className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
+                  <button
+                    type="button"
+                    className="absolute bottom-3 right-3 p-2 bg-white rounded-full border border-[#D5CBBF] shadow-2xs hover:bg-[#FAF4EB] text-[#8C6D53]"
+                    title="發音"
+                  >
+                    <Volume2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
 
-          {/* Hardcore Typing Input Form (No multiple choice!) */}
-          <form onSubmit={handleFormSubmit} className="w-full max-w-sm flex flex-col items-center gap-3 mt-3">
-            <div className="relative w-full">
-              <input
-                ref={inputRef}
-                type="text"
-                autoCapitalize="none"
-                autoComplete="off"
-                autoCorrect="off"
-                spellCheck="false"
-                readOnly={isAnswered}
-                value={userInput}
-                onChange={(e) => setUserInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.nativeEvent.isComposing || (e as any).isComposing || e.keyCode === 229) return;
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    if (isAnswered) {
-                      e.preventDefault();
-                      handleNext();
-                    }
+              {/* Hardcore Typing Input Form */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (isAnswered) {
+                    handleNextTyping();
+                  } else {
+                    handleVerify();
                   }
                 }}
-                placeholder="請輸入羅馬拼音..."
-                className={`w-full px-4 py-3.5 text-center text-xl font-bold tracking-wider rounded-xl border-2 transition-all outline-hidden ${isAnswered
-                  ? isCorrect
-                    ? 'bg-[#F0FDF4] border-[#22C55E] text-[#15803D]'
-                    : 'bg-[#FEF2F2] border-[#EF4444] text-[#B91C1C]'
-                  : 'bg-white border-[#D5CBBF] text-[#2D2A26] focus:border-[#8C6D53] focus:ring-4 focus:ring-[#8C6D53]/10'
-                  }`}
-              />
+                className="w-full max-w-sm flex flex-col items-center gap-3 mt-3"
+              >
+                <div className="relative w-full">
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    autoCapitalize="none"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck="false"
+                    readOnly={isAnswered}
+                    value={userInput}
+                    onChange={(e) => setUserInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.nativeEvent.isComposing || (e as any).isComposing || e.keyCode === 229) return;
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        if (isAnswered) {
+                          e.preventDefault();
+                          handleNextTyping();
+                        }
+                      }
+                    }}
+                    placeholder="請輸入羅馬拼音..."
+                    className={`w-full px-4 py-3.5 text-center text-xl font-bold tracking-wider rounded-xl border-2 transition-all outline-hidden ${isAnswered
+                        ? isCorrect
+                          ? 'bg-[#F0FDF4] border-[#22C55E] text-[#15803D]'
+                          : 'bg-[#FEF2F2] border-[#EF4444] text-[#B91C1C]'
+                        : 'bg-white border-[#D5CBBF] text-[#2D2A26] focus:border-[#8C6D53] focus:ring-4 focus:ring-[#8C6D53]/10'
+                      }`}
+                  />
 
-              {isAnswered && (
-                <div className="absolute right-3.5 top-1/2 -translate-y-1/2">
-                  {isCorrect ? (
-                    <CheckCircle2 className="w-6 h-6 text-[#16A34A]" />
-                  ) : (
-                    <XCircle className="w-6 h-6 text-[#DC2626]" />
+                  {isAnswered && (
+                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2">
+                      {isCorrect ? (
+                        <CheckCircle2 className="w-6 h-6 text-[#16A34A]" />
+                      ) : (
+                        <XCircle className="w-6 h-6 text-[#DC2626]" />
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
 
-            {/* Answer Feedback / Tolerance notes */}
-            {isAnswered && (
-              <div className="w-full text-center py-2 px-3 rounded-lg text-xs sm:text-sm animate-fade-in font-medium">
-                {isCorrect ? (
-                  <span className="text-[#15803D]">
-                    太棒了！容許拼法：{currentKana.romaji.join(', ')}
-                  </span>
-                ) : (
-                  <span className="text-[#B91C1C]">
-                    正確答案是：<strong className="underline text-base">{currentKana.romaji[0]}</strong>
-                    {currentKana.romaji.length > 1 && ` (亦可拼作: ${currentKana.romaji.slice(1).join(', ')})`}
-                  </span>
+                {/* Answer Feedback / Tolerance notes */}
+                {isAnswered && (
+                  <div className="w-full text-center py-2 px-3 rounded-lg text-xs sm:text-sm animate-fade-in font-medium">
+                    {isCorrect ? (
+                      <span className="text-[#15803D]">
+                        太棒了！容許拼法：{currentKana.romaji.join(', ')}
+                      </span>
+                    ) : (
+                      <span className="text-[#B91C1C]">
+                        正確答案是：<strong className="underline text-base">{currentKana.romaji[0]}</strong>
+                        {currentKana.romaji.length > 1 && ` (亦可拼作: ${currentKana.romaji.slice(1).join(', ')})`}
+                      </span>
+                    )}
+                  </div>
                 )}
+
+                {/* Action Buttons */}
+                <div className="w-full flex items-center gap-2 mt-1">
+                  {!isAnswered ? (
+                    <button
+                      type="submit"
+                      disabled={!userInput.trim()}
+                      className="w-full py-3 bg-[#2D2A26] text-white font-bold rounded-xl shadow-xs hover:bg-[#1E1C1A] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <span>驗證答案 (Enter)</span>
+                    </button>
+                  ) : (
+                    <button
+                      ref={nextButtonRef}
+                      type="button"
+                      onClick={handleNextTyping}
+                      autoFocus
+                      className="w-full py-3 bg-[#8C6D53] text-white font-bold rounded-xl shadow-xs hover:bg-[#735842] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <span>下一題 (Enter)</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </form>
+
+              {/* Quick Help Tip */}
+              <div className="mt-6 text-[11px] text-[#A8A29E] flex items-center gap-1.5">
+                <span>💡 支援多種羅馬字拼法（如 si/shi, tu/tsu, fu/hu）</span>
               </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="w-full flex items-center gap-2 mt-1">
-              {!isAnswered ? (
-                <button
-                  type="submit"
-                  disabled={!userInput.trim()}
-                  className="w-full py-3 bg-[#2D2A26] text-white font-bold rounded-xl shadow-xs hover:bg-[#1E1C1A] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <span>驗證答案 (Enter)</span>
-                </button>
-              ) : (
-                <button
-                  ref={nextButtonRef}
-                  type="button"
-                  onClick={handleNext}
-                  autoFocus
-                  className="w-full py-3 bg-[#8C6D53] text-white font-bold rounded-xl shadow-xs hover:bg-[#735842] transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <span>下一題 (Enter / 空白鍵)</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              )}
             </div>
-          </form>
+          )}
 
-          {/* Quick Help Tip */}
-          <div className="mt-6 text-[11px] text-[#A8A29E] flex items-center gap-1.5">
-            <span>💡 支援多種羅馬字拼法（如 si/shi, tu/tsu, fu/hu）· Enter 鍵快速送出</span>
-          </div>
+          {/* ============================================================ */}
+          {/* MODE 2: 聽音默寫 (AUDIO RECALL / 3D FLIP CARD)                */}
+          {/* ============================================================ */}
+          {practiceMode === 'audioRecall' && (
+            <div className="w-full max-w-md flex flex-col items-center">
+
+              {/* 3D Flip Card Container */}
+              <div className="w-full [perspective:1000px] my-2">
+                <div
+                  className={`relative w-full min-h-[390px] rounded-3xl transition-transform duration-500 [transform-style:preserve-3d] ${isFlipped ? '[transform:rotateY(180deg)]' : ''
+                    }`}
+                >
+
+                  {/* FRONT SIDE (正面：題目與默寫手寫板) */}
+                  <div
+                    className={`absolute inset-0 w-full h-full bg-[#FAF7F2] border-2 border-[#E8E2D9] rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-between shadow-xs [backface-visibility:hidden] ${isFlipped ? 'pointer-events-none' : ''
+                      }`}
+                  >
+                    {/* Front Header: Prompt Instruction + Compact Audio Replay */}
+                    <div className="flex items-center justify-between w-full pb-1 border-b border-[#E8E2D9]/70">
+                      <div className="flex items-center gap-1.5 sm:gap-2">
+                        <span className="text-xs font-medium text-[#78716C]">請寫出：</span>
+                        <span
+                          className={`text-xs font-bold px-2 py-0.5 rounded-md ${currentKana.script === 'hiragana'
+                              ? 'bg-[#8C6D53]/15 text-[#6B533E]'
+                              : 'bg-[#4B6B94]/15 text-[#2C4D75]'
+                            }`}
+                        >
+                          {currentKana.script === 'hiragana' ? '平假名' : '片假名'}
+                        </span>
+                        <span className="text-[11px] text-[#A8A29E]">
+                          ({currentKana.group === 'seion' ? '清音' : currentKana.group === 'dakuon' ? '濁音' : '拗音'})
+                        </span>
+                      </div>
+
+                      {/* Compact Audio Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleSpeech()}
+                        className={`px-3 py-1 rounded-full border flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer ${isPlayingAudio
+                            ? 'bg-[#8C6D53] text-white border-[#8C6D53] shadow-xs'
+                            : 'bg-white text-[#8C6D53] border-[#D5CBBF] hover:bg-[#FAF4EB] hover:border-[#8C6D53]'
+                          }`}
+                        title="重播發音"
+                      >
+                        <Volume2 className={`w-3.5 h-3.5 ${isPlayingAudio ? 'animate-pulse' : ''}`} />
+                        <span>發音</span>
+                      </button>
+                    </div>
+
+                    {/* Handwriting Scratchpad Canvas (Enlarged) */}
+                    <div className="relative w-full max-w-[320px] flex justify-center my-auto py-1">
+                      <canvas
+                        ref={canvasRef}
+                        width={320}
+                        height={220}
+                        onMouseDown={handleStartDraw}
+                        onMouseMove={handleDraw}
+                        onMouseUp={handleStopDraw}
+                        onMouseLeave={handleStopDraw}
+                        onTouchStart={handleStartDraw}
+                        onTouchMove={handleDraw}
+                        onTouchEnd={handleStopDraw}
+                        className="w-full h-[220px] rounded-2xl border-2 border-[#D5CBBF] shadow-2xs touch-none cursor-crosshair bg-white"
+                        title="手寫板：請在此練習默寫"
+                      />
+
+                      {/* Quick Clear Button */}
+                      <button
+                        type="button"
+                        onClick={clearCanvas}
+                        title="清除筆跡"
+                        className="absolute top-2.5 right-2.5 px-2 py-1 bg-white/90 hover:bg-white rounded-lg border border-[#E8E2D9] text-[#78716C] hover:text-[#2D2A26] shadow-2xs cursor-pointer flex items-center gap-1 text-xs transition-colors"
+                      >
+                        <Eraser className="w-3.5 h-3.5" />
+                        <span>清除</span>
+                      </button>
+                    </div>
+
+                    {/* Flip Trigger Button (Compact) */}
+                    <button
+                      type="button"
+                      onClick={() => setIsFlipped(true)}
+                      className="px-8 py-2 bg-[#2D2A26] text-white font-bold text-sm rounded-xl shadow-xs hover:bg-[#1E1C1A] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <RotateCw className="w-3.5 h-3.5" />
+                      <span>翻面看答案</span>
+                    </button>
+                  </div>
+
+                  {/* BACK SIDE (背面：答案展示與自我評估) */}
+                  <div
+                    className={`absolute inset-0 w-full h-full bg-white border-2 border-[#8C6D53]/30 rounded-3xl p-5 sm:p-6 flex flex-col items-center justify-between shadow-md [backface-visibility:hidden] [transform:rotateY(180deg)] ${!isFlipped ? 'pointer-events-none' : ''
+                      }`}
+                  >
+                    {/* Back Header */}
+                    <div className="flex items-center justify-between w-full text-xs text-[#78716C] border-b border-[#F5EFE6] pb-2">
+                      <span className="font-semibold text-[#8C6D53]">正解公布</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsFlipped(false)}
+                        className="hover:text-[#2D2A26] underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>翻回手寫板</span>
+                      </button>
+                    </div>
+
+                    {/* Big Kana Character Reveal */}
+                    <div className="flex flex-col items-center my-auto py-2">
+                      <div className="text-7xl sm:text-8xl font-black font-serif text-[#2D2A26] select-none tracking-tight">
+                        {currentKana.char}
+                      </div>
+
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-2xl font-black font-mono text-[#8C6D53]">
+                          [ {currentKana.romaji.join(' / ')} ]
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleSpeech()}
+                          className="p-1.5 rounded-full bg-[#FAF4EB] border border-[#E8E2D9] text-[#8C6D53] hover:bg-[#F0EBE3] cursor-pointer"
+                          title="再聽一次發音"
+                        >
+                          <Volume2 className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <div className="text-xs text-[#78716C] mt-1 font-medium">
+                        {currentKana.script === 'hiragana' ? '平假名' : '片假名'} · {currentKana.group === 'seion' ? '清音' : currentKana.group === 'dakuon' ? '濁音 / 半濁音' : '拗音'}
+                      </div>
+                    </div>
+
+                    {/* Self Assessment Action Buttons */}
+                    <div className="w-full flex flex-col gap-2">
+                      <div className="text-center text-xs font-medium text-[#78716C]">
+                        核對你的記憶或草稿板，這題記熟了嗎？
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 w-full">
+                        {/* 沒記熟 Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleSelfAssess(false)}
+                          className="py-2.5 px-3 rounded-xl border-2 border-[#FECACA] bg-[#FEF2F2] hover:bg-[#FEE2E2] text-[#DC2626] font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+                        >
+                          <XCircle className="w-4 h-4" />
+                          <span>沒記熟</span>
+                        </button>
+
+                        {/* 記住了 Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleSelfAssess(true)}
+                          className="py-2.5 px-3 rounded-xl border-2 border-[#8C6D53] bg-[#8C6D53] hover:bg-[#735842] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>記住了</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       ) : (
         /* Round Completed Summary Screen */
@@ -465,17 +913,23 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
           <Mascot
             state="celebrating"
             size="lg"
-            message="太強了！整串糰子大滿貫！你完成了一整輪五十音打字背誦！"
+            message={
+              practiceMode === 'audioRecall'
+                ? '恭喜完成聽音默寫特訓！純聽覺記憶已被牢牢刻入腦海！'
+                : '太強了！整串糰子大滿貫！你完成了一整輪五十音打字背誦！'
+            }
             showBubble={true}
             customImage={mascotCheerImg}
             disableConfetti={true}
           />
 
           <h3 className="text-2xl font-black text-[#2D2A26] mt-6">
-            五十音本輪特訓結算
+            {practiceMode === 'audioRecall' ? '五十音聽音默寫結算' : '五十音打字特訓結算'}
           </h3>
           <p className="text-sm text-[#78716C] mt-1">
-            Dango 糰子小隊為你的堅持鼓掌！不看選項盲打才是真正學會！
+            {practiceMode === 'audioRecall'
+              ? '不依賴羅馬字輸入提示，純粹靠聽覺與手寫字形喚醒記憶，效果最紮實！'
+              : 'Dango 糰子小隊為你的堅持鼓掌！不看選項盲打才是真正學會！'}
           </p>
 
           <div className="grid grid-cols-3 gap-4 my-8 w-full max-w-md">
@@ -486,13 +940,17 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
               </div>
             </div>
             <div className="p-4 rounded-xl bg-[#FAF7F2] border border-[#E8E2D9]">
-              <div className="text-xs text-[#78716C]">答對題數</div>
+              <div className="text-xs text-[#78716C]">
+                {practiceMode === 'audioRecall' ? '熟練掌握' : '答對題數'}
+              </div>
               <div className="text-2xl font-black text-[#15803D] tabular-nums mt-1">
                 {sessionCorrectCount}
               </div>
             </div>
             <div className="p-4 rounded-xl bg-[#FAF7F2] border border-[#E8E2D9]">
-              <div className="text-xs text-[#78716C]">正確率</div>
+              <div className="text-xs text-[#78716C]">
+                {practiceMode === 'audioRecall' ? '記憶熟練度' : '正確率'}
+              </div>
               <div className="text-2xl font-black text-[#8C6D53] tabular-nums mt-1">
                 {sessionTotalCount > 0 ? ((sessionCorrectCount / sessionTotalCount) * 100).toFixed(0) : 0}%
               </div>
@@ -502,7 +960,7 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-sm">
             <button
               onClick={() => startNewSession()}
-              className="w-full py-3 bg-[#2D2A26] text-white font-bold rounded-xl shadow-xs hover:bg-[#1E1C1A] transition-all flex items-center justify-center gap-2"
+              className="w-full py-3 bg-[#2D2A26] text-white font-bold rounded-xl shadow-xs hover:bg-[#1E1C1A] transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <RotateCcw className="w-4 h-4" />
               <span>再來一輪特訓</span>

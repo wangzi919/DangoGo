@@ -54,6 +54,8 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
 
   // Audio Recall (Flip Card) Specific State
   const [isFlipped, setIsFlipped] = useState<boolean>(false);
+  const [isFlippingNext, setIsFlippingNext] = useState<boolean>(false);
+  const isTransitioningRef = useRef<boolean>(false);
 
   // Session Statistics
   const [sessionCorrectCount, setSessionCorrectCount] = useState<number>(0);
@@ -246,6 +248,8 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
     setIsAnswered(false);
     setIsCorrect(null);
     setIsFlipped(false);
+    setIsFlippingNext(false);
+    isTransitioningRef.current = false;
     setSessionCompleted(false);
     setSessionCorrectCount(0);
     setSessionTotalCount(shuffled.length);
@@ -318,7 +322,7 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
 
   // Audio Recall Mode Self-Assessment
   const handleSelfAssess = (remembered: boolean) => {
-    if (!currentKana) return;
+    if (!currentKana || isTransitioningRef.current) return;
 
     onUpdateStats(remembered);
 
@@ -330,7 +334,7 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
     } else {
       playErrorSound();
       setMascotState('thinking');
-      setMascotMessage(`已收錄到生詞錯題本！「${currentKana.char}」讀作 [${currentKana.romaji.join(' / ')}]，多翻幾次就記住囉！`);
+      setMascotMessage(`已收錄到生詞錯題本！多翻幾次就記住囉！`);
 
       onRecordMistake({
         targetId: currentKana.id,
@@ -351,16 +355,27 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
       return;
     }
 
-    const nextIdx = currentIndex + 1;
-    setCurrentIndex(nextIdx);
+    // Lock transition, mask back side, and trigger flip back to front
+    isTransitioningRef.current = true;
+    setIsFlippingNext(true);
     setIsFlipped(false);
-    clearCanvas();
 
+    const nextIdx = currentIndex + 1;
+
+    // Wait until card has completely flipped back to the front side before loading next question
     setTimeout(() => {
-      if (queue[nextIdx]) {
-        handleSpeech(queue[nextIdx].char);
-      }
-    }, 150);
+      setCurrentIndex(nextIdx);
+      clearCanvas();
+      setIsFlippingNext(false);
+      isTransitioningRef.current = false;
+
+      // Play audio for the next question after front side is safely in view
+      setTimeout(() => {
+        if (queue[nextIdx]) {
+          handleSpeech(queue[nextIdx].char);
+        }
+      }, 80);
+    }, 320);
   };
 
   // Next question for typing mode
@@ -417,6 +432,7 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
 
       // In audioRecall mode
       if (practiceMode === 'audioRecall') {
+        if (isTransitioningRef.current) return;
         if (!isFlipped) {
           // Front side: Enter flips to back
           if (e.key === 'Enter') {
@@ -747,7 +763,7 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
               {/* 3D Flip Card Container */}
               <div className="w-full [perspective:1000px] my-2">
                 <div
-                  className={`relative w-full min-h-[390px] rounded-3xl transition-transform duration-500 [transform-style:preserve-3d] ${isFlipped ? '[transform:rotateY(180deg)]' : ''
+                  className={`relative w-full min-h-[390px] rounded-3xl transition-transform duration-300 [transform-style:preserve-3d] ${isFlipped ? '[transform:rotateY(180deg)]' : ''
                     }`}
                 >
 
@@ -833,72 +849,82 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
                     className={`absolute inset-0 w-full h-full bg-white border-2 border-[#8C6D53]/30 rounded-3xl p-5 sm:p-6 flex flex-col items-center justify-between shadow-md [backface-visibility:hidden] [transform:rotateY(180deg)] ${!isFlipped ? 'pointer-events-none' : ''
                       }`}
                   >
-                    {/* Back Header */}
-                    <div className="flex items-center justify-between w-full text-xs text-[#78716C] border-b border-[#F5EFE6] pb-2">
-                      <span className="font-semibold text-[#8C6D53]">正解公布</span>
-                      <button
-                        type="button"
-                        onClick={() => setIsFlipped(false)}
-                        className="hover:text-[#2D2A26] underline flex items-center gap-1 cursor-pointer"
-                      >
-                        <RotateCcw className="w-3 h-3" />
-                        <span>翻回手寫板</span>
-                      </button>
-                    </div>
-
-                    {/* Big Kana Character Reveal */}
-                    <div className="flex flex-col items-center my-auto py-2">
-                      <div className="text-7xl sm:text-8xl font-black font-serif text-[#2D2A26] select-none tracking-tight">
-                        {currentKana.char}
+                    {isFlippingNext ? (
+                      <div className="w-full h-full flex flex-col items-center justify-center text-[#A8A29E] text-xs font-semibold select-none">
+                        <span>準備下一題...</span>
                       </div>
+                    ) : (
+                      <>
+                        {/* Back Header */}
+                        <div className="flex items-center justify-between w-full text-xs text-[#78716C] border-b border-[#F5EFE6] pb-2">
+                          <span className="font-semibold text-[#8C6D53]">正解公布</span>
+                          <button
+                            type="button"
+                            onClick={() => setIsFlipped(false)}
+                            className="hover:text-[#2D2A26] underline flex items-center gap-1 cursor-pointer"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                            <span>翻回手寫板</span>
+                          </button>
+                        </div>
 
-                      <div className="flex items-center gap-2 mt-2">
-                        <span className="text-2xl font-black font-mono text-[#8C6D53]">
-                          [ {currentKana.romaji.join(' / ')} ]
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleSpeech()}
-                          className="p-1.5 rounded-full bg-[#FAF4EB] border border-[#E8E2D9] text-[#8C6D53] hover:bg-[#F0EBE3] cursor-pointer"
-                          title="再聽一次發音"
-                        >
-                          <Volume2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                        {/* Big Kana Character Reveal */}
+                        <div className="flex flex-col items-center my-auto py-2">
+                          <div className="text-7xl sm:text-8xl font-black font-serif text-[#2D2A26] select-none tracking-tight">
+                            {currentKana.char}
+                          </div>
 
-                      <div className="text-xs text-[#78716C] mt-1 font-medium">
-                        {currentKana.script === 'hiragana' ? '平假名' : '片假名'} · {currentKana.group === 'seion' ? '清音' : currentKana.group === 'dakuon' ? '濁音 / 半濁音' : '拗音'}
-                      </div>
-                    </div>
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className="text-base sm:text-lg font-bold font-mono text-[#8C6D53] bg-[#FAF4EB] px-2.5 py-0.5 rounded-lg border border-[#E8E2D9]">
+                              [ {currentKana.romaji.join(' / ')} ]
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleSpeech()}
+                              className="p-1 rounded-full bg-[#FAF4EB] border border-[#E8E2D9] text-[#8C6D53] hover:bg-[#F0EBE3] cursor-pointer"
+                              title="再聽一次發音"
+                            >
+                              <Volume2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
 
-                    {/* Self Assessment Action Buttons */}
-                    <div className="w-full flex flex-col gap-2">
-                      <div className="text-center text-xs font-medium text-[#78716C]">
-                        核對你的記憶或草稿板，這題記熟了嗎？
-                      </div>
+                          <div className="text-xs text-[#78716C] mt-1 font-medium">
+                            {currentKana.script === 'hiragana' ? '平假名' : '片假名'} · {currentKana.group === 'seion' ? '清音' : currentKana.group === 'dakuon' ? '濁音 / 半濁音' : '拗音'}
+                          </div>
+                        </div>
 
-                      <div className="grid grid-cols-2 gap-3 w-full">
-                        {/* 沒記熟 Button */}
-                        <button
-                          type="button"
-                          onClick={() => handleSelfAssess(false)}
-                          className="py-2.5 px-3 rounded-xl border-2 border-[#FECACA] bg-[#FEF2F2] hover:bg-[#FEE2E2] text-[#DC2626] font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer"
-                        >
-                          <XCircle className="w-4 h-4" />
-                          <span>沒記熟</span>
-                        </button>
+                        {/* Self Assessment Action Buttons */}
+                        <div className="w-full flex flex-col gap-2">
+                          <div className="text-center text-xs font-medium text-[#78716C]">
+                            核對你的記憶或草稿板，這題記熟了嗎？
+                          </div>
 
-                        {/* 記住了 Button */}
-                        <button
-                          type="button"
-                          onClick={() => handleSelfAssess(true)}
-                          className="py-2.5 px-3 rounded-xl border-2 border-[#8C6D53] bg-[#8C6D53] hover:bg-[#735842] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer"
-                        >
-                          <CheckCircle2 className="w-4 h-4" />
-                          <span>記住了</span>
-                        </button>
-                      </div>
-                    </div>
+                          <div className="grid grid-cols-2 gap-3 w-full">
+                            {/* 沒記熟 Button */}
+                            <button
+                              type="button"
+                              disabled={isFlippingNext}
+                              onClick={() => handleSelfAssess(false)}
+                              className="py-2.5 px-3 rounded-xl border-2 border-[#FECACA] bg-[#FEF2F2] hover:bg-[#FEE2E2] text-[#DC2626] font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+                            >
+                              <XCircle className="w-4 h-4" />
+                              <span>沒記熟</span>
+                            </button>
+
+                            {/* 記住了 Button */}
+                            <button
+                              type="button"
+                              disabled={isFlippingNext}
+                              onClick={() => handleSelfAssess(true)}
+                              className="py-2.5 px-3 rounded-xl border-2 border-[#8C6D53] bg-[#8C6D53] hover:bg-[#735842] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                              <span>記住了</span>
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                 </div>

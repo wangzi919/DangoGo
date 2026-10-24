@@ -41,8 +41,8 @@ export function hydrateSingleMistake(
   let expected: string[] = Array.isArray(item.expected)
     ? item.expected.filter(e => typeof e === 'string' && e.trim().length > 0)
     : item.expected
-    ? [String(item.expected).trim()]
-    : [];
+      ? [String(item.expected).trim()]
+      : [];
   let lesson = typeof item.lesson === 'number' ? item.lesson : 0;
 
   // 1. 五十音 (kana)
@@ -64,7 +64,7 @@ export function hydrateSingleMistake(
     if (matchedKana) {
       prompt = matchedKana.char;
       const scriptLabel = matchedKana.script === 'hiragana' ? '平假名' : '片假名';
-      display = `${scriptLabel}：${matchedKana.char} [${matchedKana.romaji.join(' / ')}]`;
+      display = `${scriptLabel}：${matchedKana.char}`;
       if (expected.length === 0) {
         expected = matchedKana.romaji;
       }
@@ -75,6 +75,8 @@ export function hydrateSingleMistake(
       }
       if (!display) {
         display = `五十音：${prompt}`;
+      } else {
+        display = display.replace(/\s*\[.*?\]$/, '');
       }
     }
   }

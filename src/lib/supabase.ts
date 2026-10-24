@@ -272,17 +272,40 @@ export async function fetchUserMistakes(user: User | null): Promise<MistakeItem[
         .order('last_failed_at', { ascending: false });
 
       if (!error && data) {
-        return data.map(item => ({
-          id: item.id,
-          targetId: item.target_id,
-          type: item.type,
-          prompt: item.prompt || '',
-          expected: Array.isArray(item.expected) ? item.expected : [item.expected],
-          display: item.display || item.prompt || '',
-          failCount: item.fail_count || 1,
-          lesson: item.lesson || 1,
-          lastFailedAt: item.last_failed_at
-        }));
+        let localMistakesMap: Record<string, { prompt?: string; display?: string }> = {};
+        try {
+          const raw = localStorage.getItem(STORAGE_KEYS.LOCAL_MISTAKES);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              parsed.forEach((m: any) => {
+                if (m.id) localMistakesMap[m.id] = { prompt: m.prompt, display: m.display };
+                if (m.targetId && m.type) localMistakesMap[`${m.type}_${m.targetId}`] = { prompt: m.prompt, display: m.display };
+              });
+            }
+          }
+        } catch {
+          // ignore cache read error
+        }
+
+        return data.map(item => {
+          const cached = localMistakesMap[item.id] || localMistakesMap[`${item.type}_${item.target_id}`];
+          return {
+            id: item.id,
+            targetId: item.target_id,
+            type: item.type,
+            prompt: item.prompt || cached?.prompt || '',
+            expected: Array.isArray(item.expected)
+              ? item.expected
+              : typeof item.expected === 'string'
+                ? [item.expected]
+                : [],
+            display: item.display || cached?.display || item.prompt || cached?.prompt || '',
+            failCount: item.fail_count || 1,
+            lesson: item.lesson || 1,
+            lastFailedAt: item.last_failed_at
+          };
+        });
       }
     } catch (err) {
       console.warn('Error fetching mistakes from Supabase', err);

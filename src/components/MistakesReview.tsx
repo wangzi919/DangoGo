@@ -78,6 +78,34 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
 
   const currentItem = drillQueue[drillIndex];
 
+  const playAudioForMistake = (item?: MistakeItem | null) => {
+    if (!item) return;
+    if (item.type === 'kana') {
+      playJapaneseSpeech(item.prompt || item.targetId);
+    } else if (item.type === 'vocab') {
+      const match = item.prompt.match(/\(([^)]+)\)/);
+      const toSpeak = item.expected[0] || (match ? match[1] : item.prompt);
+      playJapaneseSpeech(toSpeak);
+    } else if (item.type === 'cloze') {
+      const filled = item.prompt.includes('＿＿') && item.expected[0]
+        ? item.prompt.replace('＿＿', item.expected[0])
+        : item.prompt;
+      playJapaneseSpeech(filled);
+    } else if (item.type === 'translation') {
+      playJapaneseSpeech(item.expected[0] || item.prompt);
+    } else {
+      playJapaneseSpeech(item.expected[0] || item.prompt);
+    }
+  };
+
+  const formatMistakeDisplay = (item: MistakeItem) => {
+    const raw = item.display || `${item.type}：${item.targetId || item.id}`;
+    if (item.type === 'kana') {
+      return raw.replace(/\s*\[.*?\]$/, '');
+    }
+    return raw;
+  };
+
   const handleVerifyDrill = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!currentItem || drillAnswered || !drillInput.trim()) return;
@@ -92,7 +120,7 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
     if (correct) {
       playSuccessSound();
       setMascotState('jumping');
-      setMascotMsg(`太厲害了！你成功攻克了「${currentItem.prompt}」！`);
+      setMascotMsg(`太厲害了！你成功攻克了「${currentItem.prompt || currentItem.targetId}」！`);
       // Auto-remove mistake on mastery
       onRemoveMistake(currentItem.id);
     } else {
@@ -101,7 +129,7 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
       setMascotMsg(`糰子抖了抖，正確解答是「${currentItem.expected.join(' / ')}」，記住它！`);
     }
 
-    playJapaneseSpeech(currentItem.prompt);
+    playAudioForMistake(currentItem);
   };
 
   const handleNextDrill = () => {
@@ -306,10 +334,10 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span className="text-2xl font-bold font-serif text-[#2D2A26]">
-                      {item.prompt}
+                      {item.prompt || item.targetId || '未命名題目'}
                     </span>
                     <button
-                      onClick={() => playJapaneseSpeech(item.prompt)}
+                      onClick={() => playAudioForMistake(item)}
                       className="p-1 rounded-full text-[#8C6D53] hover:bg-[#FAF4EB]"
                       title="發音"
                     >
@@ -323,11 +351,11 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
                 </div>
 
                 <div className="mt-2 text-xs text-[#78716C]">
-                  {item.display}
+                  {formatMistakeDisplay(item)}
                 </div>
 
                 <div className="mt-2 text-xs font-semibold text-[#8C6D53]">
-                  正確答案：<span className="font-mono text-sm">{item.expected.join(' / ')}</span>
+                  正確答案：<span className="font-mono text-sm">{item.expected && item.expected.length > 0 ? item.expected.join(' / ') : '-'}</span>
                 </div>
               </div>
 
@@ -398,10 +426,10 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
 
                 <div className="my-5 text-center">
                   <div className="text-4xl font-extrabold text-[#2D2A26] font-serif mb-1">
-                    {currentItem.prompt}
+                    {currentItem.prompt || currentItem.targetId || '未命名題目'}
                   </div>
                   <div className="text-xs text-[#78716C]">
-                    {currentItem.display}
+                    {formatMistakeDisplay(currentItem)}
                   </div>
                 </div>
 

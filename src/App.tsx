@@ -28,6 +28,8 @@ import {
   fetchUserStats,
   saveUserStats
 } from './lib/supabase';
+import { ALL_KANA } from './data/kanaData';
+import { hydrateMistakes } from './lib/mistakesHydration';
 
 import { Navbar } from './components/Navbar';
 import { PracticeHub } from './components/PracticeHub';
@@ -97,9 +99,16 @@ export default function App() {
     const loadedCustomVocab = await fetchUserCustomVocab(user);
     setCustomVocab(loadedCustomVocab);
 
-    // 3. Fetch user mistakes
+    // 3. Fetch user mistakes and re-hydrate prompt/display/expected from target_id & type
     const loadedMistakes = await fetchUserMistakes(user);
-    setMistakes(loadedMistakes);
+    const hydratedMistakes = hydrateMistakes(loadedMistakes, {
+      textbookVocab: fetchedTbVocab,
+      clozeExercises: fetchedCloze,
+      translationExercises: fetchedTrans,
+      customVocab: loadedCustomVocab,
+      kanaList: ALL_KANA
+    });
+    setMistakes(hydratedMistakes);
 
     // 4. Fetch user stats
     const loadedStats = await fetchUserStats(user);
@@ -139,12 +148,30 @@ export default function App() {
     };
     const updated = [newItem, ...customVocab];
     setCustomVocab(updated);
+    setMistakes(prev =>
+      hydrateMistakes(prev, {
+        textbookVocab,
+        clozeExercises,
+        translationExercises,
+        customVocab: updated,
+        kanaList: ALL_KANA
+      })
+    );
     await saveUserCustomVocab(updated, user);
   };
 
   const handleUpdateCustomVocab = async (updatedItem: VocabItem) => {
     const updated = customVocab.map(v => (v.id === updatedItem.id ? updatedItem : v));
     setCustomVocab(updated);
+    setMistakes(prev =>
+      hydrateMistakes(prev, {
+        textbookVocab,
+        clozeExercises,
+        translationExercises,
+        customVocab: updated,
+        kanaList: ALL_KANA
+      })
+    );
     await saveUserCustomVocab(updated, user);
   };
 
@@ -157,8 +184,12 @@ export default function App() {
 
   // Mistake Management
   const handleRecordMistake = async (mistake: Omit<MistakeItem, 'id' | 'failCount' | 'lastFailedAt'>) => {
+    // Match by targetId and type, or prompt and type
     const existingIndex = mistakes.findIndex(
-      m => m.prompt === mistake.prompt && m.type === mistake.type
+      m =>
+        ((mistake.targetId && m.targetId && m.targetId === mistake.targetId) ||
+          (mistake.prompt && m.prompt && m.prompt === mistake.prompt)) &&
+        m.type === mistake.type
     );
     let updated: MistakeItem[];
 
@@ -166,6 +197,7 @@ export default function App() {
       updated = [...mistakes];
       updated[existingIndex] = {
         ...updated[existingIndex],
+        ...mistake,
         failCount: updated[existingIndex].failCount + 1,
         lastFailedAt: new Date().toISOString()
       };

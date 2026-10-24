@@ -337,7 +337,7 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
         type: 'kana',
         prompt: currentKana.char,
         expected: currentKana.romaji,
-        display: `${currentKana.script === 'hiragana' ? '平假名' : '片假名'}：${currentKana.char} [${currentKana.romaji.join(' / ')}]`,
+        display: `${currentKana.script === 'hiragana' ? '平假名' : '片假名'}：${currentKana.char}`,
         lesson: 0
       });
     }

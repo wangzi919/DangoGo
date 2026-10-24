@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MistakeItem, UserStats } from '../types';
 import { playJapaneseSpeech, playSuccessSound, playErrorSound } from '../lib/speech';
 import { Mascot } from './Mascot';
@@ -50,6 +50,9 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
     return item.type === filterType;
   });
 
+  const drillInputRef = useRef<HTMLInputElement>(null);
+  const nextDrillButtonRef = useRef<HTMLButtonElement>(null);
+
   const startDrill = () => {
     if (filteredMistakes.length === 0) return;
     const shuffled = [...filteredMistakes];
@@ -67,6 +70,10 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
     setMascotState('idle');
     setMascotMsg('專心致志，輸入正確讀音或答案！');
     setIsDrillActive(true);
+
+    setTimeout(() => {
+      drillInputRef.current?.focus();
+    }, 100);
   };
 
   const currentItem = drillQueue[drillIndex];
@@ -111,7 +118,43 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
     setDrillIsCorrect(null);
     setMascotState('idle');
     setMascotMsg('下一個錯題挑戰！加油！');
+
+    setTimeout(() => {
+      drillInputRef.current?.focus();
+    }, 50);
   };
+
+  const handleFormSubmitDrill = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (drillAnswered) {
+      handleNextDrill();
+    } else {
+      handleVerifyDrill();
+    }
+  };
+
+  // Focus next button when answered
+  useEffect(() => {
+    if (drillAnswered && isDrillActive) {
+      nextDrillButtonRef.current?.focus();
+    }
+  }, [drillAnswered, isDrillActive]);
+
+  // Global keydown listener for Enter in drill modal
+  useEffect(() => {
+    if (!isDrillActive || !drillAnswered || drillCompleted || drillQueue.length === 0) return;
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.isComposing || e.keyCode === 229) return;
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleNextDrill();
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [isDrillActive, drillAnswered, drillCompleted, drillQueue.length, drillIndex]);
 
   // Determine user title level
   const total = stats.totalAnswered;
@@ -362,13 +405,23 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
                   </div>
                 </div>
 
-                <form onSubmit={handleVerifyDrill} className="w-full max-w-sm flex flex-col gap-3">
+                <form onSubmit={handleFormSubmitDrill} className="w-full max-w-sm flex flex-col gap-3">
                   <input
+                    ref={drillInputRef}
                     type="text"
                     autoFocus
-                    disabled={drillAnswered}
+                    readOnly={drillAnswered}
                     value={drillInput}
                     onChange={(e) => setDrillInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.nativeEvent.isComposing || (e as any).isComposing || e.keyCode === 229) return;
+                      if (e.key === 'Enter') {
+                        if (drillAnswered) {
+                          e.preventDefault();
+                          handleNextDrill();
+                        }
+                      }
+                    }}
                     placeholder="請輸入正確拼音或讀音..."
                     className={`w-full px-4 py-3 text-center text-lg font-bold rounded-xl border-2 outline-hidden ${drillAnswered
                       ? drillIsCorrect
@@ -395,18 +448,19 @@ export const MistakesReview: React.FC<MistakesReviewProps> = ({
                       <button
                         type="submit"
                         disabled={!drillInput.trim()}
-                        className="w-full py-2.5 bg-[#2D2A26] text-white font-bold rounded-xl shadow-xs hover:bg-[#1E1C1A] disabled:opacity-40"
+                        className="w-full py-2.5 bg-[#2D2A26] text-white font-bold rounded-xl shadow-xs hover:bg-[#1E1C1A] disabled:opacity-40 cursor-pointer"
                       >
                         確認 (Enter)
                       </button>
                     ) : (
                       <button
+                        ref={nextDrillButtonRef}
                         type="button"
                         onClick={handleNextDrill}
                         autoFocus
-                        className="w-full py-2.5 bg-[#8C6D53] text-white font-bold rounded-xl shadow-xs hover:bg-[#735842] flex items-center justify-center gap-2"
+                        className="w-full py-2.5 bg-[#8C6D53] text-white font-bold rounded-xl shadow-xs hover:bg-[#735842] flex items-center justify-center gap-2 cursor-pointer"
                       >
-                        <span>下一題</span>
+                        <span>下一題 (Enter)</span>
                         <ArrowRight className="w-4 h-4" />
                       </button>
                     )}

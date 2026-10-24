@@ -153,6 +153,8 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
     playJapaneseSpeech(currentKana.char);
   };
 
+  const nextButtonRef = useRef<HTMLButtonElement>(null);
+
   const handleNext = () => {
     if (currentIndex + 1 >= queue.length) {
       // Completed round
@@ -179,6 +181,39 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
       }
     }, 100);
   };
+
+  // Handle form submit: if answered, advance to next; if not, verify
+  const handleFormSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (isAnswered) {
+      handleNext();
+    } else {
+      handleVerify();
+    }
+  };
+
+  // Focus Next button when answered
+  useEffect(() => {
+    if (isAnswered) {
+      nextButtonRef.current?.focus();
+    }
+  }, [isAnswered]);
+
+  // Global keydown listener for Enter / Space to advance to next question
+  useEffect(() => {
+    if (!isAnswered || sessionCompleted || queue.length === 0) return;
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.isComposing || e.keyCode === 229) return;
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        handleNext();
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [isAnswered, sessionCompleted, queue.length, currentIndex]);
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 flex flex-col gap-6">
@@ -337,7 +372,7 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
           </div>
 
           {/* Hardcore Typing Input Form (No multiple choice!) */}
-          <form onSubmit={handleVerify} className="w-full max-w-sm flex flex-col items-center gap-3 mt-3">
+          <form onSubmit={handleFormSubmit} className="w-full max-w-sm flex flex-col items-center gap-3 mt-3">
             <div className="relative w-full">
               <input
                 ref={inputRef}
@@ -346,9 +381,18 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
                 autoComplete="off"
                 autoCorrect="off"
                 spellCheck="false"
-                disabled={isAnswered}
+                readOnly={isAnswered}
                 value={userInput}
                 onChange={(e) => setUserInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.nativeEvent.isComposing || (e as any).isComposing || e.keyCode === 229) return;
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    if (isAnswered) {
+                      e.preventDefault();
+                      handleNext();
+                    }
+                  }
+                }}
                 placeholder="請輸入羅馬拼音..."
                 className={`w-full px-4 py-3.5 text-center text-xl font-bold tracking-wider rounded-xl border-2 transition-all outline-hidden ${isAnswered
                   ? isCorrect
@@ -391,16 +435,17 @@ export const KanaPractice: React.FC<KanaPracticeProps> = ({
                 <button
                   type="submit"
                   disabled={!userInput.trim()}
-                  className="w-full py-3 bg-[#2D2A26] text-white font-bold rounded-xl shadow-xs hover:bg-[#1E1C1A] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                  className="w-full py-3 bg-[#2D2A26] text-white font-bold rounded-xl shadow-xs hover:bg-[#1E1C1A] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <span>驗證答案 (Enter)</span>
                 </button>
               ) : (
                 <button
+                  ref={nextButtonRef}
                   type="button"
                   onClick={handleNext}
                   autoFocus
-                  className="w-full py-3 bg-[#8C6D53] text-white font-bold rounded-xl shadow-xs hover:bg-[#735842] transition-all flex items-center justify-center gap-2"
+                  className="w-full py-3 bg-[#8C6D53] text-white font-bold rounded-xl shadow-xs hover:bg-[#735842] transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <span>下一題 (Enter / 空白鍵)</span>
                   <ArrowRight className="w-4 h-4" />

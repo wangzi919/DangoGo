@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   TextbookVocabItem,
   SentenceClozeItem,
@@ -61,6 +61,9 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
+  const inputRef = useRef<HTMLInputElement>(null);
+  const nextButtonRef = useRef<HTMLButtonElement>(null);
+
   // Touch device detection to prevent mobile keyboard popups
   const isTouchDevice = () => {
     if (typeof window === 'undefined') return false;
@@ -104,10 +107,16 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
     setQuizIsCorrect(null);
     setQuizCorrectCount(0);
     setQuizCompleted(false);
+
+    setTimeout(() => {
+      if (!isTouchDevice()) {
+        inputRef.current?.focus();
+      }
+    }, 100);
   };
 
   // Initialize on first mount or mode change
-  React.useEffect(() => {
+  useEffect(() => {
     startModeSession(activeMode, selectedLesson);
   }, [activeMode, selectedLesson, textbookVocab.length, clozeExercises.length, translationExercises.length]);
 
@@ -191,7 +200,48 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
     setQuizInput('');
     setQuizAnswered(false);
     setQuizIsCorrect(null);
+
+    setTimeout(() => {
+      if (!isTouchDevice()) {
+        inputRef.current?.focus();
+      }
+    }, 50);
   };
+
+  // Form submit handles either verification or moving to next question
+  const handleFormSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (quizAnswered) {
+      handleNext();
+    } else {
+      handleVerify();
+    }
+  };
+
+  // Focus Next button or auto-refocus input when answered
+  useEffect(() => {
+    if (quizAnswered && activeMode !== 'kana') {
+      nextButtonRef.current?.focus();
+    }
+  }, [quizAnswered, activeMode]);
+
+  // Global keydown listener for Enter to advance to next question
+  useEffect(() => {
+    if (activeMode === 'kana') return;
+    if (!quizAnswered || quizCompleted || quizQueue.length === 0) return;
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Don't advance if user is actively in IME composition
+      if (e.isComposing || e.keyCode === 229) return;
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleNext();
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [activeMode, quizAnswered, quizCompleted, quizQueue.length, quizIndex]);
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 flex flex-col gap-6">
@@ -237,8 +287,8 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
           <button
             onClick={() => setActiveMode('kana')}
             className={`flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold rounded-xl border transition-all ${activeMode === 'kana'
-              ? 'bg-[#2D2A26] text-white border-[#2D2A26] shadow-xs'
-              : 'bg-white text-[#625D56] border-[#D5CBBF] hover:bg-[#FAF4EB]'
+                ? 'bg-[#2D2A26] text-white border-[#2D2A26] shadow-xs'
+                : 'bg-white text-[#625D56] border-[#D5CBBF] hover:bg-[#FAF4EB]'
               }`}
           >
             <Layers className="w-3.5 h-3.5" />
@@ -248,8 +298,8 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
           <button
             onClick={() => setActiveMode('vocab')}
             className={`flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold rounded-xl border transition-all ${activeMode === 'vocab'
-              ? 'bg-[#2D2A26] text-white border-[#2D2A26] shadow-xs'
-              : 'bg-white text-[#625D56] border-[#D5CBBF] hover:bg-[#FAF4EB]'
+                ? 'bg-[#2D2A26] text-white border-[#2D2A26] shadow-xs'
+                : 'bg-white text-[#625D56] border-[#D5CBBF] hover:bg-[#FAF4EB]'
               }`}
           >
             <BookOpen className="w-3.5 h-3.5" />
@@ -259,8 +309,8 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
           <button
             onClick={() => setActiveMode('cloze')}
             className={`flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold rounded-xl border transition-all ${activeMode === 'cloze'
-              ? 'bg-[#2D2A26] text-white border-[#2D2A26] shadow-xs'
-              : 'bg-white text-[#625D56] border-[#D5CBBF] hover:bg-[#FAF4EB]'
+                ? 'bg-[#2D2A26] text-white border-[#2D2A26] shadow-xs'
+                : 'bg-white text-[#625D56] border-[#D5CBBF] hover:bg-[#FAF4EB]'
               }`}
           >
             <PenTool className="w-3.5 h-3.5" />
@@ -270,8 +320,8 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
           <button
             onClick={() => setActiveMode('translation')}
             className={`flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold rounded-xl border transition-all ${activeMode === 'translation'
-              ? 'bg-[#2D2A26] text-white border-[#2D2A26] shadow-xs'
-              : 'bg-white text-[#625D56] border-[#D5CBBF] hover:bg-[#FAF4EB]'
+                ? 'bg-[#2D2A26] text-white border-[#2D2A26] shadow-xs'
+                : 'bg-white text-[#625D56] border-[#D5CBBF] hover:bg-[#FAF4EB]'
               }`}
           >
             <Languages className="w-3.5 h-3.5" />
@@ -346,7 +396,7 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
                       <span>漢字：{(currentItem as TextbookVocabItem).word}</span>
                       <button
                         type="button"
-                        onClick={() => playJapaneseSpeech((currentItem as TextbookVocabItem).reading || (currentItem as TextbookVocabItem).word)}
+                        onClick={() => playJapaneseSpeech((currentItem as TextbookVocabItem).word)}
                         className="p-1 rounded-full text-[#8C6D53] hover:bg-[#FAF4EB]"
                         title="朗讀"
                       >
@@ -411,7 +461,7 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
               </div>
 
               {/* Input Form with Virtual Keyboard Integration */}
-              <form onSubmit={handleVerify} className="w-full max-w-md flex flex-col gap-2.5 mt-2">
+              <form onSubmit={handleFormSubmit} className="w-full max-w-md flex flex-col gap-2.5 mt-2">
 
                 {/* Virtual Keyboard Toggle for mobile / IME-less users */}
                 <div className="w-full flex items-center justify-between text-xs px-0.5">
@@ -419,8 +469,8 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
                     type="button"
                     onClick={() => setIsKeyboardOpen(!isKeyboardOpen)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all border ${isKeyboardOpen
-                      ? 'bg-[#2D2A26] text-white border-[#2D2A26]'
-                      : 'bg-[#FAF4EB] text-[#8C6D53] border-[#D5CBBF] hover:bg-[#F2EAE0]'
+                        ? 'bg-[#2D2A26] text-white border-[#2D2A26]'
+                        : 'bg-[#FAF4EB] text-[#8C6D53] border-[#D5CBBF] hover:bg-[#F2EAE0]'
                       }`}
                   >
                     <Keyboard className="w-3.5 h-3.5" />
@@ -435,12 +485,22 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
 
                 <div className="relative w-full">
                   <input
+                    ref={inputRef}
                     type="text"
                     autoFocus={!isTouchDevice()}
                     inputMode={isKeyboardOpen ? 'none' : 'text'}
-                    disabled={quizAnswered}
+                    readOnly={quizAnswered}
                     value={quizInput}
                     onChange={(e) => setQuizInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.nativeEvent.isComposing || (e as any).isComposing || e.keyCode === 229) return;
+                      if (e.key === 'Enter') {
+                        if (quizAnswered) {
+                          e.preventDefault();
+                          handleNext();
+                        }
+                      }
+                    }}
                     placeholder={
                       isKeyboardOpen
                         ? '點擊下方虛擬鍵盤輸入...'
@@ -451,10 +511,10 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
                             : '輸入日文翻譯句子...'
                     }
                     className={`w-full px-4 py-3 text-center text-lg font-bold rounded-xl border-2 transition-all outline-hidden ${quizAnswered
-                      ? quizIsCorrect
-                        ? 'bg-[#F0FDF4] border-[#22C55E] text-[#15803D]'
-                        : 'bg-[#FEF2F2] border-[#EF4444] text-[#B91C1C]'
-                      : 'bg-white border-[#D5CBBF] text-[#2D2A26] focus:border-[#8C6D53]'
+                        ? quizIsCorrect
+                          ? 'bg-[#F0FDF4] border-[#22C55E] text-[#15803D]'
+                          : 'bg-[#FEF2F2] border-[#EF4444] text-[#B91C1C]'
+                        : 'bg-white border-[#D5CBBF] text-[#2D2A26] focus:border-[#8C6D53]'
                       }`}
                   />
 
@@ -473,8 +533,8 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
                 {quizAnswered && (
                   <div
                     className={`p-3 rounded-xl text-center text-xs sm:text-sm font-bold border ${quizIsCorrect
-                      ? 'bg-[#F0FDF4] border-[#BBF7D0] text-[#15803D]'
-                      : 'bg-[#FEF2F2] border-[#FECACA] text-[#B91C1C]'
+                        ? 'bg-[#F0FDF4] border-[#BBF7D0] text-[#15803D]'
+                        : 'bg-[#FEF2F2] border-[#FECACA] text-[#B91C1C]'
                       }`}
                   >
                     {quizIsCorrect ? (
@@ -510,16 +570,17 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
                     <button
                       type="submit"
                       disabled={!quizInput.trim()}
-                      className="w-full py-2.5 bg-[#2D2A26] text-white font-bold rounded-xl shadow-xs hover:bg-[#1E1C1A] disabled:opacity-40 transition-all text-sm"
+                      className="w-full py-2.5 bg-[#2D2A26] text-white font-bold rounded-xl shadow-xs hover:bg-[#1E1C1A] disabled:opacity-40 transition-all text-sm cursor-pointer"
                     >
                       確認送出 (Enter)
                     </button>
                   ) : (
                     <button
+                      ref={nextButtonRef}
                       type="button"
                       onClick={handleNext}
                       autoFocus
-                      className="w-full py-2.5 bg-[#8C6D53] text-white font-bold rounded-xl shadow-xs hover:bg-[#735842] transition-all flex items-center justify-center gap-2 text-sm"
+                      className="w-full py-2.5 bg-[#8C6D53] text-white font-bold rounded-xl shadow-xs hover:bg-[#735842] transition-all flex items-center justify-center gap-2 text-sm cursor-pointer"
                     >
                       <span>下一題 (Enter)</span>
                       <ArrowRight className="w-4 h-4" />
@@ -554,7 +615,7 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
 
               <button
                 onClick={() => startModeSession(activeMode, selectedLesson)}
-                className="px-6 py-2.5 bg-[#2D2A26] text-white font-bold rounded-xl text-sm shadow-xs hover:bg-[#1E1C1A]"
+                className="px-6 py-2.5 bg-[#2D2A26] text-white font-bold rounded-xl text-sm shadow-xs hover:bg-[#1E1C1A] cursor-pointer"
               >
                 再練一輪
               </button>
@@ -571,7 +632,7 @@ export const PracticeHub: React.FC<PracticeHubProps> = ({
           onToggle={() => setIsKeyboardOpen(!isKeyboardOpen)}
           onInsertChar={(char) => setQuizInput((prev) => prev + char)}
           onDeleteChar={() => setQuizInput((prev) => prev.slice(0, -1))}
-          onSubmit={handleVerify}
+          onSubmit={handleFormSubmit}
           onTransformDakuten={() => setQuizInput((prev) => transformLastChar(prev, 'dakuten'))}
           onTransformHandakuten={() => setQuizInput((prev) => transformLastChar(prev, 'handakuten'))}
           onTransformSmall={() => setQuizInput((prev) => transformLastChar(prev, 'small'))}
